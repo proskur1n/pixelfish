@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-
 // TODO: Canvas probably shouldn't directly depend on SDL2.
 #include <SDL2/SDL.h>
 
@@ -16,10 +15,11 @@ Canvas *createCanvas(int w, int h, SDL_Renderer *ren);
 
 typedef enum {
 	BRUSH_SQUARE,
-	BRUSH_CIRCLE,
+	BRUSH_ROUND,
 	ERASER,
 	COLOR_PICKER,
 	BUCKET_FILL,
+	TOOL_COUNT // Must be the last element.
 } Tool;
 
 typedef struct {

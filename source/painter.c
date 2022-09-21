@@ -28,77 +28,56 @@ Painter *createPainter()
 {
 	Painter *p = xmalloc(sizeof(Painter));
 	*p = (Painter) {
-		.tool = BRUSH_CIRCLE,
-		.brushSize = 5,
+		.tool = BRUSH_ROUND,
+		.brushSize = 2,
 	};
 	return p;
 }
 
-static bool inRadius(float x, float y, float cX, float cY, float r)
+static SDL_Rect getBrushArea(Painter *p, Canvas *c, float fx, float fy)
 {
-	float d2 = (x - cX) * (x - cX) + (y - cY) * (y - cY);
-	return d2 - r * r < 0.01f;
+	int x = (int) (p->brushSize & 1 ? fx : roundf(fx));
+	int y = (int) (p->brushSize & 1 ? fy : roundf(fy));
+	return (SDL_Rect) {x - p->brushSize / 2, y - p->brushSize / 2, p->brushSize, p->brushSize};
 }
 
-static void useSquareBrush(Painter *p, Canvas *c, float _x, float _y, uint32_t mouse)
+static SDL_Rect clipBrushAreaToCanvas(Painter *p, Canvas *c, SDL_Rect *brushArea)
 {
-	int x;
-	int y;
-	if (p->brushSize % 2 == 0) {
-		x = (int) roundf(_x);
-		y = (int) roundf(_y);
-	} else {
-		x = (int) _x;
-		y = (int) _y;
-	}
-	int half = p->brushSize / 2;
+	SDL_Rect bbox = {0, 0, c->w, c->h};
+	SDL_Rect s;
+	assert(SDL_IntersectRect(&bbox, brushArea, &s));
+	return s;
+}
 
-	x -= half;
-	y -= half;
+static void useSquareBrush(Painter *p, Canvas *c, float fx, float fy, uint32_t color)
+{
+	SDL_Rect b = getBrushArea(p, c, fx, fy);
+	SDL_Rect s = clipBrushAreaToCanvas(p, c, &b);
 
-	uint32_t color = 0;
-	if (mouse & SDL_BUTTON_LMASK) {
-		color = 0xdd8888ff;
-	}
-	if (mouse & SDL_BUTTON_RMASK) {
-		color = 0x8888ddff;
-	}
-
-	for (int j = CLAMP(y, 0, c->h); j < CLAMP(y+p->brushSize, 0, c->h); ++j) {
-		for (int i = CLAMP(x, 0, c->w); i < CLAMP(x+p->brushSize, 0, c->w); ++i) {
-			c->pixels[j * c->w + i] = color;
+	for (int j = s.y; j < s.y + s.h; ++j) {
+		for (int i = s.x; i < s.x + s.w; ++i) {
+			int index = j * c->w + i;
+			assert(index >= 0 && index < c->w * c->h);
+			c->pixels[index] = color;
 		}
 	}
 }
 
-static void useCircleBrush(Painter *p, Canvas *c, float _x, float _y, uint32_t mouse)
+static void useRoundBrush(Painter *p, Canvas *c, float fx, float fy, uint32_t color)
 {
-	int x;
-	int y;
-	if (p->brushSize % 2 == 0) {
-		x = (int) roundf(_x);
-		y = (int) roundf(_y);
-	} else {
-		x = (int) _x;
-		y = (int) _y;
-	}
-	int half = p->brushSize / 2;
+	SDL_Rect b = getBrushArea(p, c, fx, fy);
+	SDL_Rect s = clipBrushAreaToCanvas(p, c, &b);
 
-	x -= half;
-	y -= half;
+	for (int j = s.y; j < s.y + s.h; ++j) {
+		for (int i = s.x; i < s.x + s.w; ++i) {
+			float dx = b.x + b.w * 0.5f - (i + 0.5f);
+			float dy = b.y + b.h * 0.5f - (j + 0.5f);
+			float eps = 0.01f;
 
-	uint32_t color = 0;
-	if (mouse & SDL_BUTTON_LMASK) {
-		color = 0xdd8888ff;
-	}
-	if (mouse & SDL_BUTTON_RMASK) {
-		color = 0x8888ddff;
-	}
-
-	for (int j = CLAMP(y, 0, c->h); j < CLAMP(y+p->brushSize, 0, c->h); ++j) {
-		for (int i = CLAMP(x, 0, c->w); i < CLAMP(x+p->brushSize, 0, c->w); ++i) {
-			if (inRadius(i + 0.5f, j + 0.5f, x + half, y + half, half)) {
-				c->pixels[j * c->w + i] = color;
+			if (dx * dx + dy * dy < (p->brushSize / 2) * (p->brushSize / 2) + eps) {
+				int index = j * c->w + i;
+				assert(index >= 0 && index < c->w * c->h);
+				c->pixels[index] = color;
 			}
 		}
 	}
@@ -106,12 +85,19 @@ static void useCircleBrush(Painter *p, Canvas *c, float _x, float _y, uint32_t m
 
 void painterUseTool(Painter *p, Canvas *c, float x, float y, uint32_t mouse, uint32_t mods)
 {
-	assert(x >= 0 && x <= c->w);
-	assert(y >= 0 && y <= c->h);
+	assert(x >= 0 && x < c->w);
+	assert(y >= 0 && y < c->h);
 	assert(mouse != 0);
 
+	uint32_t color = 0;
+	if (mouse & SDL_BUTTON_LMASK) {
+		color = 0xdd8833ff;
+	} else {
+		color = 0x61dd77ff;
+	}
+
 	// TODO
-	useCircleBrush(p, c, x, y, mouse);
+	useRoundBrush(p, c, x, y, color);
 
 	// switch (p->tool) {
 	// case BRUSH_SQUARE:
