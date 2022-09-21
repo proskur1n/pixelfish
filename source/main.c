@@ -1,11 +1,15 @@
+#define _GNU_SOURCE
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include "painter.h"
 #include "util.h"
 
+TTF_Font *font;
 SDL_Window *win;
 SDL_Renderer *ren;
 SDL_Texture *checkerboard;
@@ -13,7 +17,15 @@ Canvas *canvas;
 Painter *painter;
 SDL_Point offset;
 float zoom = 15.0f;
-bool isMouseDown[6]; // TODO
+bool panning = false;
+
+char const *toolName[TOOL_COUNT] = {
+	"Square brush",
+	"Round brush",
+	"Eraser",
+	"Color picker",
+	"Bucket fill"
+};
 
 SDL_Texture *createCheckerboardTexture(SDL_Renderer *ren, int w, int h)
 {
@@ -37,26 +49,44 @@ SDL_Texture *createCheckerboardTexture(SDL_Renderer *ren, int w, int h)
 	return tex;
 }
 
-bool isCursorInsideCanvas(int winX, int winY)
+// Converts winX and winY from window coordinates to the relative
+// canvas coordinates.
+SDL_FPoint windowToCanvas(int winX, int winY)
 {
-	int relX = winX - offset.x;
-	int relY = winY - offset.y;
-	return !(relX < 0 || relY < 0 || relX > canvas->w * zoom || relY > canvas->h * zoom);
+	return (SDL_FPoint) { (winX - offset.x) / zoom, (winY - offset.y) / zoom };
 }
 
-// If the mouse position (x, y) is inside the canvas, fills 'out' with the
-// relative coordinates and returns true. Otherwise, sets 'out' to (0, 0)
-// and returns false.
-bool windowToCanvas(SDL_FPoint *out, int winX, int winY)
+void showString(char const *format, ...)
 {
-	if (isCursorInsideCanvas(winX, winY)) {
-		out->x = (winX - offset.x) / zoom;
-		out->y = (winY - offset.y) / zoom;
-		return true;
+	char *str = NULL;
+	va_list va;
+	va_start(va, format);
+	if (vasprintf(&str, format, va) < 0) {
+		return;
 	}
-	out->x = 0.0f;
-	out->y = 0.0f;
-	return false;
+	va_end(va);
+
+	SDL_Color fg = {255, 255, 255, 255};
+	SDL_Color bg = {30, 30, 30, 255};
+	SDL_Surface *s = TTF_RenderUTF8_Shaded(font, str, fg, bg);
+	free(str);
+	if (s == NULL) {
+		return;
+	}
+	SDL_Texture *t = SDL_CreateTextureFromSurface(ren, s);
+	if (t == NULL) {
+		SDL_FreeSurface(s);
+		return;
+	}
+
+	int winW, winH;
+	SDL_GetRendererOutputSize(ren, &winW, &winH);
+	int paddingLeft = 4;
+
+	SDL_Rect dest = {paddingLeft, winH - s->h, s->w, s->h};
+	SDL_RenderCopy(ren, t, NULL, &dest);
+	SDL_FreeSurface(s);
+	SDL_DestroyTexture(t);
 }
 
 int main(int argc, char **argv)
@@ -64,6 +94,16 @@ int main(int argc, char **argv)
 	if (SDL_Init(SDL_INIT_VIDEO)) {
 		fatalSDL("Could not initialize SDL2");
 	}
+
+	if (TTF_Init()) {
+		fatalSDL("Could not initialize SDL2_ttf");
+	}
+
+	font = TTF_OpenFont("amiko/Amiko-Regular.ttf", 16);
+	if (font == NULL) {
+		fatalSDL("Could not open font");
+	}
+	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
 
 	win = SDL_CreateWindow(
 		"An SDL2 win",
@@ -83,6 +123,7 @@ int main(int argc, char **argv)
 	}
 
 	SDL_Cursor *crossCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
+	SDL_Cursor *handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
 	SDL_Cursor *defaultCursor = SDL_GetDefaultCursor();
 
 	canvas = createCanvas(40, 30, ren);
@@ -90,66 +131,72 @@ int main(int argc, char **argv)
 	checkerboard = createCheckerboardTexture(ren, canvas->w, canvas->h);
 
 	while (true) {
-		SDL_Event e;
-		SDL_WaitEvent(&e);
-		switch (e.type) {
-		case SDL_QUIT:
-			goto quit;
-		case SDL_MOUSEBUTTONDOWN:
-			// TODO is isMouseDown needed?
-			isMouseDown[e.button.button] = true;
-			if (e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT) {
-				SDL_FPoint point;
-				if (windowToCanvas(&point, e.button.x, e.button.y)) {
-					uint32_t state = SDL_GetMouseState(NULL, NULL);
-					uint32_t mods = SDL_GetModState();
-					painterUseTool(painter, canvas, point.x, point.y, state, mods);
+		SDL_WaitEvent(NULL); // This will call SDL_PumpEvents.
+		SDL_Event events[16];
+		int numEvents = SDL_PeepEvents(events, LENGTH(events), SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT);
+
+		int x, y;
+		uint32_t mouseState = SDL_GetMouseState(&x, &y);
+		uint32_t mods = SDL_GetModState();
+
+		// while (SDL_PollEvent(&e)) {
+		for (int i = 0; i < numEvents; ++i) {
+			SDL_Event e = events[i];
+			switch (e.type) {
+			case SDL_QUIT:
+				goto quit;
+			case SDL_MOUSEWHEEL:
+				if (mods & KMOD_CTRL) {
+					zoom *= MAX(0.5f, 1.0f + e.wheel.y * 0.15f);
 				}
-			}
-			break;
-		case SDL_MOUSEBUTTONUP:
-			isMouseDown[e.button.button] = false;
-			break;
-		case SDL_MOUSEMOTION:
-			if (e.motion.state & SDL_BUTTON_MMASK) {
-				offset.x += e.motion.xrel;
-				offset.y += e.motion.yrel;
-			}
-			if (isCursorInsideCanvas(e.motion.x, e.motion.y)) {
-				SDL_SetCursor(crossCursor);
-			} else {
-				SDL_SetCursor(defaultCursor);
-			}
-			if (e.motion.state & (SDL_BUTTON_LMASK | SDL_BUTTON_RMASK)) {
-				SDL_FPoint point;
-				if (windowToCanvas(&point, e.button.x, e.button.y)) {
-					uint32_t state = e.motion.state;
-					uint32_t mods = SDL_GetModState();
-					painterUseTool(painter, canvas, point.x, point.y, state, mods);
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+				if ((mouseState & SDL_BUTTON_MMASK) || ((mods & KMOD_CTRL) && e.button.button == SDL_BUTTON_LEFT)) {
+					if (!panning) {
+						SDL_SetCursor(handCursor);
+						panning = true;
+					}
+				} else {
+					SDL_FPoint xy = windowToCanvas(x, y);
+					painterMouseDown(painter, canvas, xy.x, xy.y, mods, e.button.button);
 				}
+				break;
+			case SDL_MOUSEBUTTONUP:
+				if (panning) {
+					SDL_SetCursor(crossCursor);
+					panning = false;
+				} else {
+					SDL_FPoint xy = windowToCanvas(x, y);
+					painterMouseUp(painter, canvas, xy.x, xy.y, mods, e.button.button);
+				}
+				break;
+			case SDL_MOUSEMOTION:
+				if (panning) {
+					offset.x += e.motion.xrel;
+					offset.y += e.motion.yrel;
+				} else {
+					SDL_FPoint xy = windowToCanvas(x, y);
+					painterMouseMove(painter, canvas, xy.x, xy.y, mods);
+				}
+				break;
 			}
-			break;
-		case SDL_MOUSEWHEEL:
-			zoom += e.wheel.y * 0.75f;
-			// printf("%d %d\n", e.wheel.x, e.wheel.y);
-			break;
 		}
 
-		SDL_SetRenderDrawColor(ren, 160, 215, 170, 255);
+		SDL_SetRenderDrawColor(ren, 30, 30, 30, 255);
 		SDL_RenderClear(ren);
 
 		SDL_Rect rect = {offset.x, offset.y, (int)(canvas->w * zoom), (int)(canvas->h * zoom)};
 		SDL_RenderCopy(ren, checkerboard, NULL, &rect);
 		SDL_RenderCopy(ren, canvas->tex, NULL, &rect);
 
+		showString("%s (%d)", toolName[painter->tool], painter->brushSize);
+
 		SDL_RenderPresent(ren);
 	}
 
 quit:
-	// Close and destroy the win
+	// TODO: Clean up everything.
 	SDL_DestroyWindow(win);
-
-	// Clean up
 	SDL_Quit();
-	return 0;
 }
+

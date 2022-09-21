@@ -25,9 +25,17 @@ typedef enum {
 typedef struct {
 	Tool tool;
 	int brushSize;
+	uint32_t leftColor;
+	uint32_t rightColor;
+	uint8_t activeButton;
 } Painter;
 
 Painter *createPainter();
 
-void painterUseTool(Painter *, Canvas *c, float x, float y, uint32_t mouse, uint32_t mods);
+// 'x' and 'y' should be relative to the canvas, not window coordinates.
+// 'mods': keyboard modifiers
+// 'button': mouse button which triggered this event
+void painterMouseDown(Painter *, Canvas *, float x, float y, uint32_t mods, uint8_t button);
+void painterMouseMove(Painter *, Canvas *, float x, float y, uint32_t mods);
+void painterMouseUp(Painter *, Canvas *, float x, float y, uint32_t mods, uint8_t button);
 

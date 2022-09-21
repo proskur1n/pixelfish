@@ -30,6 +30,8 @@ Painter *createPainter()
 	*p = (Painter) {
 		.tool = BRUSH_ROUND,
 		.brushSize = 2,
+		.leftColor = 0x4498a3ff,
+		.rightColor = 0xa34f44ff
 	};
 	return p;
 }
@@ -44,9 +46,9 @@ static SDL_Rect getBrushArea(Painter *p, Canvas *c, float fx, float fy)
 static SDL_Rect clipBrushAreaToCanvas(Painter *p, Canvas *c, SDL_Rect *brushArea)
 {
 	SDL_Rect bbox = {0, 0, c->w, c->h};
-	SDL_Rect s;
-	assert(SDL_IntersectRect(&bbox, brushArea, &s));
-	return s;
+	SDL_Rect result;
+	SDL_IntersectRect(&bbox, brushArea, &result);
+	return result;
 }
 
 static void useSquareBrush(Painter *p, Canvas *c, float fx, float fy, uint32_t color)
@@ -83,29 +85,82 @@ static void useRoundBrush(Painter *p, Canvas *c, float fx, float fy, uint32_t co
 	}
 }
 
-void painterUseTool(Painter *p, Canvas *c, float x, float y, uint32_t mouse, uint32_t mods)
+static bool isCursorInsideCanvas(Canvas *c, float x, float y)
 {
-	assert(x >= 0 && x < c->w);
-	assert(y >= 0 && y < c->h);
-	assert(mouse != 0);
+	return x >= 0.0f && y >= 0.0f && x < c->w && y < c->h;
+}
 
-	uint32_t color = 0;
-	if (mouse & SDL_BUTTON_LMASK) {
-		color = 0xdd8833ff;
-	} else {
-		color = 0x61dd77ff;
+static uint32_t getBrushColor(Painter *p, uint8_t button)
+{
+	if (button == SDL_BUTTON_LEFT) {
+		return p->leftColor;
 	}
+	if (button == SDL_BUTTON_RIGHT) {
+		return p->rightColor;
+	}
+	return 0;
+}
 
-	// TODO
-	useRoundBrush(p, c, x, y, color);
+void painterMouseDown(Painter *p, Canvas *c, float x, float y, uint32_t mods, uint8_t button)
+{
+	if (p->activeButton) {
+		return;
+	}
+	p->activeButton = button;
 
-	// switch (p->tool) {
-	// case BRUSH_SQUARE:
-	// 	useSquareBrush(p, c, x, y);
+	switch (p->tool) {
+	case BRUSH_SQUARE:
+		useSquareBrush(p, c, x, y, getBrushColor(p, button));
+		break;
+	case BRUSH_ROUND:
+		useRoundBrush(p, c, x, y, getBrushColor(p, button));
+		break;
+	case ERASER:
+		useSquareBrush(p, c, x, y, 0);
+		break;
+	// case COLOR_PICKER:
 	// 	break;
-	// }
-
+	// case BUCKET_FILL:
+	// 	break;
+	default:
+		fputs("Not implemented!", stderr);
+	}
 	// TODO
 	SDL_UpdateTexture(c->tex, NULL, c->pixels, c->w * sizeof(uint32_t));
+}
+
+void painterMouseMove(Painter *p, Canvas *c, float x, float y, uint32_t mods)
+{
+	if (!p->activeButton) {
+		return;
+	}
+	switch (p->tool) {
+	case BRUSH_SQUARE:
+		useSquareBrush(p, c, x, y, getBrushColor(p, p->activeButton));
+		break;
+	case BRUSH_ROUND:
+		useRoundBrush(p, c, x, y, getBrushColor(p, p->activeButton));
+		break;
+	case ERASER:
+		useSquareBrush(p, c, x, y, 0);
+		break;
+	case COLOR_PICKER:
+	case BUCKET_FILL:
+		// No-op
+		break;
+	default:
+		fputs("Not implemented!", stderr);
+	}
+	// TODO
+	SDL_UpdateTexture(c->tex, NULL, c->pixels, c->w * sizeof(uint32_t));
+}
+
+void painterMouseUp(Painter *p, Canvas *c, float x, float y, uint32_t mods, uint8_t button)
+{
+	if (p->activeButton != button) {
+		return;
+	}
+	p->activeButton = 0;
+	// TODO: Commit changes to history (only for brushes and eraser).
 }
 
