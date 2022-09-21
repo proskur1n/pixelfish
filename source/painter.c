@@ -24,6 +24,11 @@ Canvas *createCanvas(int w, int h, SDL_Renderer *ren)
 	return c;
 }
 
+void freeCanvas(Canvas *c)
+{
+	free(c);
+}
+
 Painter *createPainter()
 {
 	Painter *p = xmalloc(sizeof(Painter));

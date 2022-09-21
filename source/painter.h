@@ -12,6 +12,7 @@ typedef struct {
 } Canvas;
 
 Canvas *createCanvas(int w, int h, SDL_Renderer *ren);
+void freeCanvas(Canvas *);
 
 typedef enum {
 	BRUSH_SQUARE,
