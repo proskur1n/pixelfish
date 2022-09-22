@@ -2,37 +2,95 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_keyboard.h>
+#include <SDL2/SDL_image.h>
 #include "painter.h"
 #include "util.h"
 
-Canvas *createCanvas(int w, int h, SDL_Renderer *ren)
+static void *memdup(void *src, size_t n)
 {
-	Canvas *c = xmalloc(sizeof(Canvas) + sizeof(uint32_t) * w * h);
+	void *dest = xmalloc(n);
+	memcpy(dest, src, n);
+	return dest;
+}
+
+// 'pixels' must point to a valid heap-allocated [w * h] array. Canvas becomes
+// the sole owner of this memory buffer. Do not free 'pixels' yourself.
+static Canvas *createCanvasFromMemory(int w, int h, Color *pixels, SDL_Renderer *ren)
+{
+	Canvas *c = xmalloc(sizeof(Canvas));
 	c->w = w;
 	c->h = h;
-	memset(c->pixels, 0, w * h * sizeof(uint32_t));
+	c->ext = UNKNOWN_IMAGE;
+	c->pixels = pixels;
+	c->undoPixels = memdup(pixels, sizeof(Color) * w * h);
 
 	c->tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, w, h);
 	if (c->tex == NULL) {
 		fatalSDL("Could not create texture");
 	}
 	SDL_SetTextureBlendMode(c->tex, SDL_BLENDMODE_BLEND);
-	SDL_UpdateTexture(c->tex, NULL, c->pixels, w * sizeof(uint32_t));
+	int pitch = w * sizeof(Color);
+	SDL_UpdateTexture(c->tex, NULL, c->pixels, pitch);
 
 	return c;
 }
 
-void freeCanvas(Canvas *c)
+Canvas *createCanvasWithBackground(int w, int h, Color bg, SDL_Renderer *ren)
 {
-	free(c);
+	Color *pixels = xmalloc(sizeof(Canvas) * w * h);
+	for (int i = 0; i < w * h; ++i) {
+		pixels[i] = bg;
+	}
+	return createCanvasFromMemory(w, h, pixels, ren);
 }
 
-static bool isCursorInsideCanvas(Canvas *c, float x, float y)
+Canvas *createCanvasFromFile(char const *path, SDL_Renderer *ren)
 {
-	return x >= 0.0f && y >= 0.0f && x < c->w && y < c->h;
+	SDL_Surface *surface = NULL;
+	ImageExtension ext = UNKNOWN_IMAGE;
+	char const *extstr = strrchr(path, '.');
+	if (extstr == NULL) {
+		return NULL;
+	}
+
+	if (strcasecmp(extstr, ".png") == 0) {
+		if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
+			return NULL;
+		}
+		ext = PNG;
+		surface = IMG_Load(path);
+	} else if (strcasecmp(extstr, ".jpg") == 0 || strcasecmp(extstr, ".jpeg") == 0) {
+		if (!(IMG_Init(IMG_INIT_JPG) & IMG_INIT_JPG)) {
+			return NULL;
+		}
+		ext = JPG;
+		surface = IMG_Load(path);
+	}
+
+	if (surface) {
+		Color *pixels = xmalloc(sizeof(Color) * surface->w * surface->h);
+		SDL_ConvertPixels(surface->w, surface->h, surface->format->format, surface->pixels,
+			surface->pitch, SDL_PIXELFORMAT_RGBA8888, pixels, surface->w * sizeof(Color));
+		Canvas *canvas = createCanvasFromMemory(surface->w, surface->h, pixels, ren);
+		canvas->ext = ext;
+		SDL_FreeSurface(surface);
+		return canvas;
+	}
+	return NULL;
+}
+
+void freeCanvas(Canvas *c)
+{
+	if (c) {
+		free(c->pixels);
+		free(c->undoPixels);
+		SDL_DestroyTexture(c->tex);
+		free(c);
+	}
 }
 
 Painter *createPainter()
@@ -46,6 +104,11 @@ Painter *createPainter()
 		.rightColor = 0xa34f44ff
 	};
 	return p;
+}
+
+void freePainter(Painter *p)
+{
+	free(p);
 }
 
 static SDL_Rect getBrushArea(Painter *p, Canvas *c, float fx, float fy)

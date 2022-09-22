@@ -2,17 +2,32 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-// TODO: Canvas probably shouldn't directly depend on SDL2.
+// TODO: Canvas probably shouldn't directly depend on SDL_Texture.
 #include <SDL2/SDL.h>
 
+typedef uint32_t Color;
+
+typedef enum {
+	UNKNOWN_IMAGE,
+	PNG,
+	JPG
+} ImageExtension;
+
 typedef struct {
-    int w;
-    int h;
-    SDL_Texture *tex;
-    uint32_t pixels[]; // [w * h] pixels in RGBA format.
+	int w;
+	int h;
+	ImageExtension ext;
+	SDL_Texture *tex;
+	// [w * h] pixels in RGBA format.
+	Color *pixels;
+	// Used inside the history system. Do not edit directly.
+	Color *undoPixels;
 } Canvas;
 
-Canvas *createCanvas(int w, int h, SDL_Renderer *ren);
+Canvas *createCanvasWithBackground(int w, int h, Color bg, SDL_Renderer *ren);
+// Note that this function can fail and return NULL.
+Canvas *createCanvasFromFile(char const *path, SDL_Renderer *ren);
+// It is safe to free a NULL canvas.
 void freeCanvas(Canvas *);
 
 typedef enum {
@@ -35,6 +50,7 @@ typedef struct {
 } Painter;
 
 Painter *createPainter();
+void freePainter(Painter *);
 
 // 'x' and 'y' should be relative to the canvas, not window coordinates.
 // 'mods': keyboard modifiers
