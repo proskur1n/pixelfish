@@ -20,6 +20,7 @@ float zoom = 15.0f;
 bool panning = false;
 
 char const *toolName[TOOL_COUNT] = {
+	"Unknown",
 	"Square brush",
 	"Round brush",
 	"Eraser",
@@ -122,11 +123,20 @@ int main(int argc, char **argv)
 		fatal("Could not create renderer: %s", SDL_GetError());
 	}
 
+	// SDL_RendererInfo info;
+	// if (SDL_GetRendererInfo(ren, &info)) {
+	// 	fatalSDL("SDL_GetRendererInfo");
+	// }
+	// printf("software: %d\n", info.flags & SDL_RENDERER_SOFTWARE);
+	// printf("accelerated: %d\n", info.flags & SDL_RENDERER_ACCELERATED);
+	// printf("vsync: %d\n", info.flags & SDL_RENDERER_PRESENTVSYNC);
+	// printf("targettexture: %d\n", info.flags & SDL_RENDERER_TARGETTEXTURE);
+
 	SDL_Cursor *crossCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
 	SDL_Cursor *handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
 	SDL_Cursor *defaultCursor = SDL_GetDefaultCursor();
 
-	canvas = createCanvas(40, 30, ren);
+	canvas = createCanvas(60, 50, ren);
 	painter = createPainter();
 	checkerboard = createCheckerboardTexture(ren, canvas->w, canvas->h);
 
@@ -145,6 +155,12 @@ int main(int argc, char **argv)
 			switch (e.type) {
 			case SDL_QUIT:
 				goto quit;
+			case SDL_KEYDOWN:
+				painterKeyDown(painter, mods, e.key.keysym.scancode, e.key.repeat);
+				break;
+			case SDL_KEYUP:
+				painterKeyUp(painter, mods, e.key.keysym.scancode, e.key.repeat);
+				break;
 			case SDL_MOUSEWHEEL:
 				if (mods & KMOD_CTRL) {
 					zoom *= MAX(0.5f, 1.0f + e.wheel.y * 0.15f);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 // TODO: Canvas probably shouldn't directly depend on SDL2.
 #include <SDL2/SDL.h>
 
@@ -15,6 +16,7 @@ Canvas *createCanvas(int w, int h, SDL_Renderer *ren);
 void freeCanvas(Canvas *);
 
 typedef enum {
+	NO_TOOL,
 	BRUSH_SQUARE,
 	BRUSH_ROUND,
 	ERASER,
@@ -25,6 +27,7 @@ typedef enum {
 
 typedef struct {
 	Tool tool;
+	Tool prevTool;
 	int brushSize;
 	uint32_t leftColor;
 	uint32_t rightColor;
@@ -39,4 +42,7 @@ Painter *createPainter();
 void painterMouseDown(Painter *, Canvas *, float x, float y, uint32_t mods, uint8_t button);
 void painterMouseMove(Painter *, Canvas *, float x, float y, uint32_t mods);
 void painterMouseUp(Painter *, Canvas *, float x, float y, uint32_t mods, uint8_t button);
+
+void painterKeyDown(Painter *, int mods, int scancode, bool repeat);
+void painterKeyUp(Painter *, int mods, int scancode, bool repeat);
 

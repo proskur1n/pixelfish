@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_mouse.h>
+#include <SDL2/SDL_keyboard.h>
 #include "painter.h"
 #include "util.h"
 
@@ -33,7 +34,8 @@ Painter *createPainter()
 {
 	Painter *p = xmalloc(sizeof(Painter));
 	*p = (Painter) {
-		.tool = BRUSH_ROUND,
+		.tool = BRUSH_SQUARE,
+		.prevTool = BRUSH_SQUARE,
 		.brushSize = 2,
 		.leftColor = 0x4498a3ff,
 		.rightColor = 0xa34f44ff
@@ -166,6 +168,57 @@ void painterMouseUp(Painter *p, Canvas *c, float x, float y, uint32_t mods, uint
 		return;
 	}
 	p->activeButton = 0;
+
 	// TODO: Commit changes to history (only for brushes and eraser).
+}
+
+static void setTool(Painter *p, Tool tool)
+{
+	if (p->activeButton) {
+		return;
+	}
+	p->prevTool = p->tool;
+	p->tool = tool;
+}
+
+void painterKeyDown(Painter *p, int mods, int scancode, bool repeat)
+{
+	if (scancode == SDL_SCANCODE_LEFTBRACKET) {
+		p->brushSize = MAX(1, p->brushSize - 1);
+	} else if (scancode == SDL_SCANCODE_RIGHTBRACKET) {
+		p->brushSize += 1;
+	}
+
+	if (repeat) {
+		return;
+	}
+
+	switch (scancode) {
+	case SDL_SCANCODE_B:
+		if (mods & KMOD_SHIFT) {
+			setTool(p, BRUSH_ROUND);
+		} else {
+			setTool(p, BRUSH_SQUARE);
+		}
+		break;
+	case SDL_SCANCODE_E:
+		setTool(p, ERASER);
+		break;
+	case SDL_SCANCODE_G:
+		setTool(p, BUCKET_FILL);
+		break;
+	case SDL_SCANCODE_LALT:
+		setTool(p, COLOR_PICKER);
+		break;
+	default:
+		break;
+	}
+}
+
+void painterKeyUp(Painter *p, int mods, int scancode, bool repeat)
+{
+	if (scancode == SDL_SCANCODE_E || scancode == SDL_SCANCODE_G || scancode == SDL_SCANCODE_LALT) {
+		p->tool = p->prevTool;
+	}
 }
 
