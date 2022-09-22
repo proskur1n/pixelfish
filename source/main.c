@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include "painter.h"
@@ -27,6 +28,16 @@ char const *toolName[TOOL_COUNT] = {
 	"Color picker",
 	"Bucket fill"
 };
+
+void printHelp()
+{
+	char const *msg =
+		"pixelfish [OPTIONS] [filepath]\n"
+		"  -w         Image width\n"
+		"  -h         Image height\n"
+		"  -p PATH    Select a different palette\n";
+	printf("%s", msg);
+}
 
 SDL_Texture *createCheckerboardTexture(SDL_Renderer *ren, int w, int h)
 {
@@ -92,12 +103,56 @@ void showString(char const *format, ...)
 
 int main(int argc, char **argv)
 {
-	if (SDL_Init(SDL_INIT_VIDEO)) {
-		fatalSDL("Could not initialize SDL2");
+	int width = 0;
+	int height = 0;
+	char const *filepath = NULL;
+	char const *palette = getenv("PIXELFISH_PALETTE");
+	char const *theme = getenv("PIXELFISH_THEME");
+
+	for (int i = 1; i < argc; ++i) {
+		if (argv[i][0] != '-') {
+			if (i != argc - 1) {
+				fatal("Filename must be the last argument");
+			}
+			filepath = argv[i];
+			break;
+		}
+		if (strcmp(argv[i], "--") == 0) {
+			filepath = argv[i+1]; // Note that argv[argc] is always NULL.
+			break;
+		}
+		if (strcmp(argv[i], "--help") == 0) {
+			printHelp();
+			return 0;
+		}
+		if (strcmp(argv[i], "-w") == 0) {
+			width = atoi(argv[++i]);
+		} else if (strcmp(argv[i], "-h") == 0) {
+			height = atoi(argv[++i]);
+		} else if (strcmp(argv[i], "-p") == 0) {
+			palette = argv[++i];
+		} else {
+			fatal("Unknown option: %s", argv[i]);
+		}
 	}
 
-	if (TTF_Init()) {
-		fatalSDL("Could not initialize SDL2_ttf");
+	if (filepath && (width != 0 || height != 0)) {
+		fatal("You cannot specify a width or height for an existing image");
+	}
+	if ((width != 0) != (height != 0)) {
+		fatal("You must specify both width and height, or neither");
+	}
+
+	if (theme == NULL || strcmp(theme, "dark") == 0) {
+		// TODO
+	} else if (strcmp(theme, "light") == 0) {
+		// TODO
+	} else {
+		fatal("Unknown theme: %s", theme);
+	}
+
+	if (SDL_Init(SDL_INIT_VIDEO) || TTF_Init()) {
+		fatalSDL("Could not initialize SDL2");
 	}
 
 	font = TTF_OpenFont("amiko/Amiko-Regular.ttf", 16);
@@ -136,7 +191,10 @@ int main(int argc, char **argv)
 	SDL_Cursor *handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
 	SDL_Cursor *defaultCursor = SDL_GetDefaultCursor();
 
-	canvas = createCanvas(60, 50, ren);
+	canvas = createCanvasFromFile(filepath, ren);
+	if (!canvas) {
+		fatalSDL("Could not read image");
+	}
 	painter = createPainter();
 	checkerboard = createCheckerboardTexture(ren, canvas->w, canvas->h);
 
