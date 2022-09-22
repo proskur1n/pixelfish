@@ -1,6 +1,6 @@
-PixelFish is a work-in-progress pixel art editor.
+Pixelfish is a work-in-progress pixel art editor.
 
-## Keybindings
+### Keybindings
 
 | Key        | Description         |
 |------------|---------------------|
@@ -14,3 +14,13 @@ PixelFish is a work-in-progress pixel art editor.
 | Ctrl+Wheel | Zoom in / out       |
 | Ctrl+Left  | Pan                 |
 
+### Configuration
+
+This editor does not have a configuration file. Instead, you can set some of its permanent options with environment variables.
+
+Also see `--help` for a list of supported command-line arguments. Note that program arguments have a higher priority than environment variables.
+
+| Env               | Description                        |
+|-------------------|------------------------------------|
+| PIXELFISH_PALETTE | Path to a different Lospec palette |
+| PIXELFISH_THEME   | Can be "light" or "dark"          |
