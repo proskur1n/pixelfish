@@ -30,6 +30,11 @@ void freeCanvas(Canvas *c)
 	free(c);
 }
 
+static bool isCursorInsideCanvas(Canvas *c, float x, float y)
+{
+	return x >= 0.0f && y >= 0.0f && x < c->w && y < c->h;
+}
+
 Painter *createPainter()
 {
 	Painter *p = xmalloc(sizeof(Painter));
@@ -92,20 +97,14 @@ static void useRoundBrush(Painter *p, Canvas *c, float fx, float fy, uint32_t co
 	}
 }
 
-static bool isCursorInsideCanvas(Canvas *c, float x, float y)
+static uint32_t pickColor(Painter *p, Canvas *c, float fx, float fy)
 {
-	return x >= 0.0f && y >= 0.0f && x < c->w && y < c->h;
-}
-
-static uint32_t getBrushColor(Painter *p, uint8_t button)
-{
-	if (button == SDL_BUTTON_LEFT) {
-		return p->leftColor;
+	int x = fx;
+	int y = fy;
+	if (x < 0 || x >= c->w || y < 0 || y >= c->h) {
+		return 0;
 	}
-	if (button == SDL_BUTTON_RIGHT) {
-		return p->rightColor;
-	}
-	return 0;
+	return c->pixels[y * c->w + x];
 }
 
 void painterMouseDown(Painter *p, Canvas *c, float x, float y, uint32_t mods, uint8_t button)
@@ -115,23 +114,32 @@ void painterMouseDown(Painter *p, Canvas *c, float x, float y, uint32_t mods, ui
 	}
 	p->activeButton = button;
 
-	switch (p->tool) {
-	case BRUSH_SQUARE:
-		useSquareBrush(p, c, x, y, getBrushColor(p, button));
-		break;
-	case BRUSH_ROUND:
-		useRoundBrush(p, c, x, y, getBrushColor(p, button));
-		break;
-	case ERASER:
-		useSquareBrush(p, c, x, y, 0);
-		break;
-	// case COLOR_PICKER:
-	// 	break;
-	// case BUCKET_FILL:
-	// 	break;
-	default:
-		fputs("Not implemented!", stderr);
+	if (button == SDL_BUTTON_LEFT) {
+		if (p->tool == BRUSH_SQUARE) {
+			useSquareBrush(p, c, x, y, p->leftColor);
+		} else if (p->tool == BRUSH_ROUND) {
+			useRoundBrush(p, c, x, y, p->leftColor);
+		} else if (p->tool == ERASER) {
+			useSquareBrush(p, c, x, y, 0);
+		} else if (p->tool == COLOR_PICKER) {
+			uint32_t newColor = pickColor(p, c, x, y);
+			if (newColor != 0) {
+				p->leftColor = newColor;
+			}
+		}
+	} else if (button == SDL_BUTTON_RIGHT) {
+		if (p->tool == BRUSH_SQUARE) {
+			useSquareBrush(p, c, x, y, p->rightColor);
+		} else if (p->tool == BRUSH_ROUND) {
+			useRoundBrush(p, c, x, y, p->rightColor);
+		} else if (p->tool == COLOR_PICKER) {
+			uint32_t newColor = pickColor(p, c, x, y);
+			if (newColor != 0) {
+				p->rightColor = newColor;
+			}
+		}
 	}
+
 	// TODO
 	SDL_UpdateTexture(c->tex, NULL, c->pixels, c->w * sizeof(uint32_t));
 }
@@ -141,23 +149,23 @@ void painterMouseMove(Painter *p, Canvas *c, float x, float y, uint32_t mods)
 	if (!p->activeButton) {
 		return;
 	}
-	switch (p->tool) {
-	case BRUSH_SQUARE:
-		useSquareBrush(p, c, x, y, getBrushColor(p, p->activeButton));
-		break;
-	case BRUSH_ROUND:
-		useRoundBrush(p, c, x, y, getBrushColor(p, p->activeButton));
-		break;
-	case ERASER:
-		useSquareBrush(p, c, x, y, 0);
-		break;
-	case COLOR_PICKER:
-	case BUCKET_FILL:
-		// No-op
-		break;
-	default:
-		fputs("Not implemented!", stderr);
+
+	if (p->activeButton == SDL_BUTTON_LEFT) {
+		if (p->tool == BRUSH_SQUARE) {
+			useSquareBrush(p, c, x, y, p->leftColor);
+		} else if (p->tool == BRUSH_ROUND) {
+			useRoundBrush(p, c, x, y, p->leftColor);
+		} else if (p->tool == ERASER) {
+			useSquareBrush(p, c, x, y, 0);
+		}
+	} else if (p->activeButton == SDL_BUTTON_RIGHT) {
+		if (p->tool == BRUSH_SQUARE) {
+			useSquareBrush(p, c, x, y, p->rightColor);
+		} else if (p->tool == BRUSH_ROUND) {
+			useRoundBrush(p, c, x, y, p->rightColor);
+		}
 	}
+
 	// TODO
 	SDL_UpdateTexture(c->tex, NULL, c->pixels, c->w * sizeof(uint32_t));
 }
