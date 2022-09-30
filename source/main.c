@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#define _GNU_SOURCE // vasprintf
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
 	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
 
 	win = SDL_CreateWindow(
-		"An SDL2 win",
+		"Pixelfish",
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
 		640,
@@ -191,7 +191,8 @@ int main(int argc, char **argv)
 	SDL_Cursor *handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
 	SDL_Cursor *defaultCursor = SDL_GetDefaultCursor();
 
-	canvas = createCanvasFromFile(filepath, ren);
+	// canvas = createCanvasFromFile(filepath, ren);
+	canvas = canvas_create_with_background(40, 30, 0x445566ff, ren);
 	if (!canvas) {
 		fatalSDL("Could not read image");
 	}
@@ -261,7 +262,7 @@ int main(int argc, char **argv)
 
 		SDL_Rect rect = {offset.x, offset.y, (int)(canvas->w * zoom), (int)(canvas->h * zoom)};
 		SDL_RenderCopy(ren, checkerboard, NULL, &rect);
-		SDL_RenderCopy(ren, canvas->tex, NULL, &rect);
+		SDL_RenderCopy(ren, canvas->texture, NULL, &rect);
 
 		showString("%s (%d)", toolName[painter->tool], painter->brushSize);
 
@@ -273,4 +274,3 @@ quit:
 	SDL_DestroyWindow(win);
 	SDL_Quit();
 }
-

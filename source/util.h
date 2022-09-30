@@ -17,3 +17,5 @@ void fatal(char const *format, ...) __attribute__ ((format (printf, 1, 2), noret
 // terminates the program.
 void fatalSDL(char const *format, ...) __attribute__ ((format (printf, 1, 2), noreturn));
 
+// Creates a heap-allocated copy of data. Returns NULL on failure.
+void *memdup(void *data, size_t n) __attribute__ ((malloc));

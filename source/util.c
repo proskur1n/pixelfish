@@ -38,3 +38,10 @@ void fatalSDL(char const *format, ...)
 
 	exit(EXIT_FAILURE);
 }
+
+void *memdup(void *src, size_t n)
+{
+	void *dest = xmalloc(n);
+	memcpy(dest, src, n);
+	return dest;
+}

@@ -10,88 +10,48 @@
 #include "painter.h"
 #include "util.h"
 
-static void *memdup(void *src, size_t n)
-{
-	void *dest = xmalloc(n);
-	memcpy(dest, src, n);
-	return dest;
-}
+// TODO: Move this function to canvas.c
 
-// 'pixels' must point to a valid heap-allocated [w * h] array. Canvas becomes
-// the sole owner of this memory buffer. Do not free 'pixels' yourself.
-static Canvas *createCanvasFromMemory(int w, int h, Color *pixels, SDL_Renderer *ren)
-{
-	Canvas *c = xmalloc(sizeof(Canvas));
-	c->w = w;
-	c->h = h;
-	c->ext = UNKNOWN_IMAGE;
-	c->pixels = pixels;
-	c->undoPixels = memdup(pixels, sizeof(Color) * w * h);
+// typedef enum {
+// 	UNKNOWN_IMAGE,
+// 	PNG,
+// 	JPG
+// } ImageExtension;
 
-	c->tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, w, h);
-	if (c->tex == NULL) {
-		fatalSDL("Could not create texture");
-	}
-	SDL_SetTextureBlendMode(c->tex, SDL_BLENDMODE_BLEND);
-	int pitch = w * sizeof(Color);
-	SDL_UpdateTexture(c->tex, NULL, c->pixels, pitch);
+// Canvas *createCanvasFromFile(char const *path, SDL_Renderer *ren)
+// {
+// 	SDL_Surface *surface = NULL;
+// 	ImageExtension ext = UNKNOWN_IMAGE;
+// 	char const *extstr = strrchr(path, '.');
+// 	if (extstr == NULL) {
+// 		return NULL;
+// 	}
 
-	return c;
-}
+// 	if (strcasecmp(extstr, ".png") == 0) {
+// 		if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
+// 			return NULL;
+// 		}
+// 		ext = PNG;
+// 		surface = IMG_Load(path);
+// 	} else if (strcasecmp(extstr, ".jpg") == 0 || strcasecmp(extstr, ".jpeg") == 0) {
+// 		if (!(IMG_Init(IMG_INIT_JPG) & IMG_INIT_JPG)) {
+// 			return NULL;
+// 		}
+// 		ext = JPG;
+// 		surface = IMG_Load(path);
+// 	}
 
-Canvas *createCanvasWithBackground(int w, int h, Color bg, SDL_Renderer *ren)
-{
-	Color *pixels = xmalloc(sizeof(Canvas) * w * h);
-	for (int i = 0; i < w * h; ++i) {
-		pixels[i] = bg;
-	}
-	return createCanvasFromMemory(w, h, pixels, ren);
-}
-
-Canvas *createCanvasFromFile(char const *path, SDL_Renderer *ren)
-{
-	SDL_Surface *surface = NULL;
-	ImageExtension ext = UNKNOWN_IMAGE;
-	char const *extstr = strrchr(path, '.');
-	if (extstr == NULL) {
-		return NULL;
-	}
-
-	if (strcasecmp(extstr, ".png") == 0) {
-		if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
-			return NULL;
-		}
-		ext = PNG;
-		surface = IMG_Load(path);
-	} else if (strcasecmp(extstr, ".jpg") == 0 || strcasecmp(extstr, ".jpeg") == 0) {
-		if (!(IMG_Init(IMG_INIT_JPG) & IMG_INIT_JPG)) {
-			return NULL;
-		}
-		ext = JPG;
-		surface = IMG_Load(path);
-	}
-
-	if (surface) {
-		Color *pixels = xmalloc(sizeof(Color) * surface->w * surface->h);
-		SDL_ConvertPixels(surface->w, surface->h, surface->format->format, surface->pixels,
-			surface->pitch, SDL_PIXELFORMAT_RGBA8888, pixels, surface->w * sizeof(Color));
-		Canvas *canvas = createCanvasFromMemory(surface->w, surface->h, pixels, ren);
-		canvas->ext = ext;
-		SDL_FreeSurface(surface);
-		return canvas;
-	}
-	return NULL;
-}
-
-void freeCanvas(Canvas *c)
-{
-	if (c) {
-		free(c->pixels);
-		free(c->undoPixels);
-		SDL_DestroyTexture(c->tex);
-		free(c);
-	}
-}
+// 	if (surface) {
+// 		Color *pixels = xmalloc(sizeof(Color) * surface->w * surface->h);
+// 		SDL_ConvertPixels(surface->w, surface->h, surface->format->format, surface->pixels,
+// 			surface->pitch, SDL_PIXELFORMAT_RGBA8888, pixels, surface->w * sizeof(Color));
+// 		Canvas *canvas = createCanvasFromMemory(surface->w, surface->h, pixels, ren);
+// 		canvas->ext = ext;
+// 		SDL_FreeSurface(surface);
+// 		return canvas;
+// 	}
+// 	return NULL;
+// }
 
 Painter *createPainter()
 {
@@ -204,7 +164,7 @@ void painterMouseDown(Painter *p, Canvas *c, float x, float y, uint32_t mods, ui
 	}
 
 	// TODO
-	SDL_UpdateTexture(c->tex, NULL, c->pixels, c->w * sizeof(uint32_t));
+	SDL_UpdateTexture(c->texture, NULL, c->pixels, c->w * sizeof(uint32_t));
 }
 
 void painterMouseMove(Painter *p, Canvas *c, float x, float y, uint32_t mods)
@@ -230,7 +190,7 @@ void painterMouseMove(Painter *p, Canvas *c, float x, float y, uint32_t mods)
 	}
 
 	// TODO
-	SDL_UpdateTexture(c->tex, NULL, c->pixels, c->w * sizeof(uint32_t));
+	SDL_UpdateTexture(c->texture, NULL, c->pixels, c->w * sizeof(uint32_t));
 }
 
 void painterMouseUp(Painter *p, Canvas *c, float x, float y, uint32_t mods, uint8_t button)
@@ -292,4 +252,3 @@ void painterKeyUp(Painter *p, int mods, int scancode, bool repeat)
 		p->tool = p->prevTool;
 	}
 }
-
