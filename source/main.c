@@ -29,6 +29,12 @@ SDL_Texture *checkerboard;
 int offset_x;
 int offset_y;
 float zoom = 15.0f;
+bool panning;
+bool ui_wants_mouse; // Do not pass click-events to the canvas.
+bool ctrl_down;
+bool alt_down;
+SDL_Point mouse_pos;
+bool just_clicked[6];
 
 SDL_Rect render_string(Theme theme, char const *str, int x, int y, int available_height)
 {
@@ -73,13 +79,47 @@ void render_canvas(Theme theme)
 	// SDL_RenderCopy(ren, canvas->texture, NULL, &rect);
 }
 
+// Uses the concept of immediate mode user interface to register clicks.
+void render_clickable_color_pin(Color color, int x, int y, int w) {
+	SDL_Rect rect = {x, y, w, w};
+	if (SDL_PointInRect(&mouse_pos, &rect)) {
+		ui_wants_mouse = true;
+		if (just_clicked[SDL_BUTTON_LEFT]) {
+			left_color = color;
+		}
+		if (just_clicked[SDL_BUTTON_RIGHT]) {
+			right_color = color;
+		}
+	}
+
+	fill_rect(color, x, y, w, w);
+	if (color == left_color || color == right_color) {
+		int tiny = 7;
+		int padding = 3;
+		SDL_Rect tiny_rect = {x + padding, y + padding, tiny, tiny};
+		SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); // TODO: Choose contrasting color.
+		if (color == left_color) {
+			SDL_RenderFillRect(ren, &tiny_rect);
+		} else {
+			SDL_RenderDrawRect(ren, &tiny_rect);
+		}
+		tiny_rect.x += tiny + padding;
+		if (color == right_color) {
+			SDL_RenderFillRect(ren, &tiny_rect);
+		} else {
+			SDL_RenderDrawRect(ren, &tiny_rect);
+		}
+	}
+}
+
 void render_user_interface(Theme theme)
 {
+	ui_wants_mouse = false;
 	int x = 0;
 	int y = 0;
 	int color_width = 30;
 	for (int i = 0; i < palette->count; ++i) {
-		fill_rect(palette->colors[i], x, y, color_width, color_width);
+		render_clickable_color_pin(palette->colors[i], x, y, color_width);
 		y += color_width;
 	}
 
@@ -102,6 +142,62 @@ void render_user_interface(Theme theme)
 	int th = 0;
 	TTF_SizeUTF8(font, status, &tw, &th);
 	render_string(theme, status, 0, winH - th, th);
+}
+
+void poll_events()
+{
+	// Reset io state
+	for (int i = 0; i < (int) LENGTH(just_clicked); ++i) {
+		just_clicked[i] = false;
+	}
+
+	SDL_Event e;
+	// TODO: Fix strange scroll wheel bug when using SDL_WaitEvent.
+	// SDL_WaitEvent(NULL);
+	while (SDL_PollEvent(&e)) {
+		switch (e.type) {
+		case SDL_QUIT:
+			exit(EXIT_SUCCESS);
+		case SDL_MOUSEBUTTONDOWN:
+			if ((e.button.button == SDL_BUTTON_MIDDLE) || (ctrl_down && e.button.button == SDL_BUTTON_LEFT)) {
+				// TODO: Set hand cursor
+				panning = true;
+			} else {
+				just_clicked[e.button.button] = true;
+			}
+			break;
+		case SDL_MOUSEBUTTONUP:
+			if (panning) {
+				// TODO: Reset cursor
+				panning = false;
+			} else {
+				just_clicked[e.button.button] = true;
+			}
+			break;
+		case SDL_MOUSEMOTION:
+			mouse_pos.x = e.motion.x;
+			mouse_pos.y = e.motion.y;
+			if (panning) {
+				offset_x += e.motion.xrel;
+				offset_y += e.motion.yrel;
+			}
+			break;
+		case SDL_MOUSEWHEEL:
+			if (ctrl_down) {
+				zoom *= MAX(0.5f, 1.0f + e.wheel.y * 0.15f);
+			}
+			break;
+		case SDL_KEYDOWN:
+		case SDL_KEYUP:
+			if (e.key.keysym.scancode == SDL_SCANCODE_LCTRL) {
+				ctrl_down = e.key.type == SDL_KEYDOWN;
+			}
+			if (e.key.keysym.scancode == SDL_SCANCODE_LALT) {
+				alt_down = e.key.type == SDL_KEYDOWN;
+			}
+			break;
+		}
+	}
 }
 
 int main(int argc, char *argv[])
@@ -134,15 +230,7 @@ int main(int argc, char *argv[])
 	right_color = palette->colors[1];
 
 	while (true) {
-		SDL_Event e;
-		SDL_WaitEvent(NULL);
-		while (SDL_PollEvent(&e)) {
-			switch (e.type) {
-			case SDL_QUIT:
-				return EXIT_SUCCESS;
-			}
-		}
-
+		poll_events();
 		render_canvas(dark_theme);
 		render_user_interface(dark_theme);
 		SDL_RenderPresent(ren);
