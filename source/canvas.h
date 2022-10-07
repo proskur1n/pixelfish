@@ -2,19 +2,16 @@
 // system. It does not implement any drawing operations.
 #pragma once
 
-#include <stdint.h>
 #include <SDL2/SDL_render.h>
+#include "palette.h"
 
-typedef uint32_t Color;
-typedef struct Canvas Canvas;
-
-struct Canvas {
+typedef struct {
 	int w;
 	int h;
 	SDL_Texture *texture;
 	Color *pixels; // [w * h] pixels in RGBA format.
 	Color *pixels_backup; // Used inside the history system. Do not edit directly.
-};
+} Canvas;
 
 // All canvas_create_ functions will return NULL on failure.
 // Pixels must point to a valid heap-allocated [w * h] array. Canvas becomes
