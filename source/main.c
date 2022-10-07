@@ -24,15 +24,11 @@ TTF_Font *font;
 Palette *palette;
 Color left_color;
 Color right_color;
+Canvas *canvas;
+SDL_Texture *checkerboard;
 int offset_x;
 int offset_y;
 float zoom = 15.0f;
-
-void render_canvas(Theme theme)
-{
-	SDL_SetRenderDrawColor(ren, theme.bg.r, theme.bg.g, theme.bg.b, theme.bg.a);
-	SDL_RenderClear(ren);
-}
 
 SDL_Rect render_string(Theme theme, char const *str, int x, int y, int available_height)
 {
@@ -55,6 +51,26 @@ void fill_rect(Color color, int x, int y, int w, int h)
 	SDL_Rect rect = {x, y, w, h};
 	SDL_SetRenderDrawColor(ren, RED(color), GREEN(color), BLUE(color), 255);
 	SDL_RenderFillRect(ren, &rect);
+}
+
+void render_canvas(Theme theme)
+{
+	if (checkerboard == NULL) {
+		Color *pixels = xmalloc(canvas->w * canvas->h * sizeof(Color));
+		for (int y = 0; y < canvas->h; ++y) {
+			for (int x = 0; x < canvas->w; ++x) {
+				pixels[y * canvas->w + x] = (x + y) & 1 ? 0xccccccff : 0x555555ff;
+			}
+		}
+		checkerboard = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, canvas->w, canvas->h);
+		SDL_UpdateTexture(checkerboard, NULL, pixels, canvas->w * sizeof(Color));
+		free(pixels);
+	}
+	SDL_SetRenderDrawColor(ren, theme.bg.r, theme.bg.g, theme.bg.b, theme.bg.a);
+	SDL_RenderClear(ren);
+	SDL_Rect rect = {offset_x, offset_y, (int) (canvas->w * zoom), (int) (canvas->h * zoom)};
+	SDL_RenderCopy(ren, checkerboard, NULL, &rect);
+	// SDL_RenderCopy(ren, canvas->texture, NULL, &rect);
 }
 
 void render_user_interface(Theme theme)
@@ -109,6 +125,10 @@ int main(int argc, char *argv[])
 		fatalSDL("Could not create renderer");
 	}
 
+	canvas = canvas_create_with_background(40, 30, 0xaa8877ff, ren);
+	if (canvas == NULL) {
+		fatalSDL("Could not create canvas"); // TODO
+	}
 	palette = palette_create_default();
 	left_color = palette->colors[0];
 	right_color = palette->colors[1];

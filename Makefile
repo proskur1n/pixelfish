@@ -1,5 +1,5 @@
 WARNINGS := -Wall -Wextra -Wpedantic -Wno-unused-parameter
-LIBS := -lSDL2 -lSDL2_ttf -lSDL2_image -lm
+LIBS := -lSDL2 -lSDL2_ttf -lm
 FLAGS := $(WARNINGS)
 
 pixelfish: source/*
