@@ -4,9 +4,9 @@
 #include <SDL2/SDL_error.h>
 #include "util.h"
 
-void *xmalloc(size_t size)
+void *xalloc(size_t size)
 {
-	void *p = malloc(size);
+	char *p = calloc(size, sizeof(char));
 	if (!p) {
 		fatal("No memory");
 	}
@@ -39,9 +39,11 @@ void fatalSDL(char const *format, ...)
 	exit(EXIT_FAILURE);
 }
 
-void *memdup(void *src, size_t n)
+void *xmemdup(void *src, size_t n)
 {
-	void *dest = xmalloc(n);
-	memcpy(dest, src, n);
-	return dest;
+	void *dest = malloc(n);
+	if (!dest) {
+		fatal("No memory");
+	}
+	return memcpy(dest, src, n);
 }

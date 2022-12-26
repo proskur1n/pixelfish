@@ -13,11 +13,10 @@ typedef struct {
 	Color *pixels_backup; // Used inside the history system. Do not edit directly.
 } Canvas;
 
-// All canvas_create_ functions will return NULL on failure.
 // Pixels must point to a valid heap-allocated [w * h] array. Canvas becomes
 // the sole owner of this memory buffer. Do not free pixels yourself.
-Canvas *canvas_create_from_memory(int w, int h, Color *pixels, SDL_Renderer *ren);
+Canvas canvas_create_from_memory(int w, int h, Color *pixels, SDL_Renderer *ren);
 // Creates a new canvas with bg as its background.
-Canvas *canvas_create_with_background(int w, int h, Color bg, SDL_Renderer *ren);
-// It is safe to free a NULL canvas.
-void canvas_free(Canvas *c);
+Canvas canvas_create_with_background(int w, int h, Color bg, SDL_Renderer *ren);
+// Frees the dynamically allocated memory inside the canvas.
+void canvas_free(Canvas c);

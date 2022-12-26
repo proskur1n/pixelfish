@@ -12,7 +12,7 @@ Palette *palette_create_default()
 		0x8fb569ff, 0xa7ab59ff, 0x99943cff,
 		0x7a6f18ff, 0x7a6507ff
 	};
-	Palette *p = xmalloc(sizeof(Palette) + sizeof(Color) * LENGTH(colors));
+	Palette *p = xalloc(sizeof(Palette) + sizeof(Color) * LENGTH(colors));
 	p->colorkey = 0;
 	p->count = LENGTH(colors);
 	memcpy(p->colors, colors, sizeof(colors));
