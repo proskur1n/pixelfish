@@ -33,7 +33,7 @@ typedef enum {
 SDL_Window *win;
 SDL_Renderer *ren;
 TTF_Font *font;
-Palette *palette;
+Palette palette;
 Color left_color;
 Color right_color;
 ToolEnum prev_tool = BRUSH_ROUND;
@@ -197,8 +197,8 @@ static void render_user_interface(Theme theme)
 	int x = 0;
 	int y = 0;
 	int color_width = 30;
-	for (int i = 0; i < palette->count; ++i) {
-		render_clickable_color_pin(palette->colors[i], x, y, color_width);
+	for (int i = 0; i < palette.count; ++i) {
+		render_clickable_color_pin(palette.colors[i], x, y, color_width);
 		y += color_width;
 	}
 
@@ -380,9 +380,9 @@ int main(int argc, char *argv[])
 	}
 
 	brush = brush_create(5, true);
-	palette = palette_create_default();
-	left_color = palette->colors[0];
-	// right_color = palette->colors[1];
+	palette = palette_get_default();
+	left_color = palette.colors[0];
+	// right_color = palette.colors[1];
 	right_color = 0x000000ff;
 
 	while (true) {
