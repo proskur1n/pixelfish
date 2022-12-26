@@ -23,4 +23,4 @@ void brush_resize(Brush *brush, int delta);
 void brush_set_round(Brush *brush, bool round);
 
 // Frees the data allocated for the specified brush.
-void brush_free(Brush *brush);
+void brush_free(Brush brush);

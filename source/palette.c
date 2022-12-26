@@ -4,7 +4,7 @@
 #include "palette.h"
 #include "util.h"
 
-static Color default_colors[] = {
+static Color const default_colors[] = {
 	0xf1fbfeff,
 	0xa8f7feff,
 	0x84e0abff,
@@ -32,9 +32,9 @@ Palette palette_create_from_csv_file(char const *path)
 	return (Palette) {0};
 }
 
-void palette_free(Palette *p)
+void palette_free(Palette p)
 {
-	if (p != NULL && p->colors != default_colors) {
-		free(p->colors);
+	if (p.colors != default_colors) {
+		free((Color *) p.colors);
 	}
 }

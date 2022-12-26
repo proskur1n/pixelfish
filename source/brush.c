@@ -95,7 +95,7 @@ void brush_set_round(Brush *brush, bool round)
 	}
 }
 
-void brush_free(Brush *brush)
+void brush_free(Brush brush)
 {
-	free(brush->stencil);
+	free(brush.stencil);
 }
