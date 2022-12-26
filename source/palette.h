@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-typedef uint32_t Color;
+typedef uint32_t Color; // RGBA
 
 #define RED(x) ((x) >> 24)
 #define GREEN(x) (((x) >> 16) & 0xff)

@@ -145,7 +145,7 @@ static inline bool is_brush(int x, int y)
 	return brush.stencil[y * brush.size + x];
 }
 
-static void render_brush_outline()
+static void render_brush_outline(void)
 {
 	// TODO: Decide on the blend factor / operation.
 	SDL_BlendMode oldBlend = {0};
@@ -266,14 +266,14 @@ static void tool_on_click(int button)
 	SDL_UpdateTexture(canvas.texture, NULL, canvas.pixels, canvas.w * sizeof(Color));
 }
 
-static void tool_on_move()
+static void tool_on_move(void)
 {
 	if (tool == BRUSH_ROUND || tool == BRUSH_BLOCK || tool == ERASER) {
 		tool_on_click(active_button);
 	}
 }
 
-static void poll_events()
+static void poll_events(void)
 {
 	// Reset io state
 	for (size_t i = 0; i < LENGTH(just_clicked); ++i) {
@@ -327,11 +327,16 @@ static void poll_events()
 			}
 			break;
 		case SDL_KEYDOWN:
+			// TODO: Think of a better input handling system :/
 			if (e.key.keysym.scancode == SDL_SCANCODE_E) {
 				if (tool != ERASER) {
 					prev_tool = tool;
 					tool = ERASER;
 				}
+			} else if (e.key.keysym.scancode == SDL_SCANCODE_LCTRL) {
+				ctrl_down = true;
+			} else if (e.key.keysym.scancode == SDL_SCANCODE_LALT) {
+				alt_down = true;
 			}
 			break;
 		case SDL_KEYUP:
@@ -368,7 +373,12 @@ int main(int argc, char *argv[])
 		fatalSDL("Could not create renderer");
 	}
 
-	canvas = canvas_create_with_background(40, 30, 0, ren);
+	// canvas = canvas_create_with_background(40, 30, 0, ren);
+	char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
+	if (msg != NULL) {
+		fatal("Could not open image: %s", msg);
+	}
+
 	brush = brush_create(5, true);
 	palette = palette_create_default();
 	left_color = palette->colors[0];
