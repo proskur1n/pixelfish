@@ -49,6 +49,7 @@ char const *canvas_open_image(Canvas *out_result, char const *filepath, SDL_Rend
 
 	// Convert endianness
 	for (int i = 0; i < width * height; ++i) {
+		// TODO: Use SDL_Swap* functions
 		union {
 			uint32_t ui;
 			struct { uint8_t r, g, b, a; };
@@ -103,15 +104,12 @@ void canvas_mark_dirty(Canvas *canvas, SDL_Rect region)
 		region.h = -region.h;
 	}
 
-	SDL_Rect result;
-	SDL_Rect clip = {0, 0, canvas->w, canvas->h};
-	if (!SDL_IntersectRect(&region, &clip, &result)) {
-		// Region is fully outside the canvas. This also catches the case when the region is empty.
-		return;
+	SDL_Rect bounds = {0, 0, canvas->w, canvas->h};
+	if (SDL_IntersectRect(&region, &bounds, &region)) {
+		// Note that this branch is not entered if the provided region is empty.
+		SDL_UnionRect(&canvas->dirty, &region, &canvas->dirty);
+		update_texture(canvas, region);
 	}
-
-	SDL_UnionRect(&canvas->dirty, &result, &canvas->dirty);
-	update_texture(canvas, result);
 }
 
 struct UndoPoint {

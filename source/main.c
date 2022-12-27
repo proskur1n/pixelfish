@@ -1,4 +1,3 @@
-#define _GNU_SOURCE // asprintf
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -23,7 +22,7 @@ Theme dark_theme = {
 
 typedef enum {
 	BRUSH_ROUND,
-	BRUSH_BLOCK,
+	BRUSH_SQUARE,
 	ERASER,
 	// COLOR_PICKER,
 	// BUCKET_FILL,
@@ -47,8 +46,7 @@ bool panning;
 bool drawing; // TODO remove
 int active_button; // Mouse button used for drawing.
 bool ui_wants_mouse; // Do not pass click-events to the canvas.
-bool ctrl_down;
-bool alt_down;
+bool ctrl_down; // TODO remove
 SDL_Point mouse_pos;
 bool just_clicked[6];
 
@@ -187,6 +185,14 @@ static void render_brush_outline(void)
 	SDL_SetRenderDrawBlendMode(ren, oldBlend);
 }
 
+static char const *tool_name[TOOL_COUNT] = {
+	[BRUSH_ROUND] = "Round brush",
+	[BRUSH_SQUARE] = "Square brush",
+	[ERASER] = "Eraser",
+	// COLOR_PICKER,
+	// BUCKET_FILL,
+};
+
 static void render_user_interface(Theme theme)
 {
 	if (!ui_wants_mouse || drawing) {
@@ -216,7 +222,7 @@ static void render_user_interface(Theme theme)
 	}
 
 	char status[128];
-	snprintf(status, LENGTH(status), " Brush size: %d, History: [%d/%d]", brush.size, canvas.undo_left, canvas.undo_left + canvas.redo_left);
+	snprintf(status, LENGTH(status), " %s (%d) | History: [%d/%d]", tool_name[tool], brush.size, canvas.undo_left, canvas.undo_left + canvas.redo_left);
 	int tw = 0;
 	int th = 0;
 	TTF_SizeUTF8(font, status, &tw, &th);
@@ -247,6 +253,9 @@ static void use_brush(bool round, int size, Color color, float fx, float fy)
 
 static void tool_on_click(int button)
 {
+	if (button != SDL_BUTTON_LEFT && button != SDL_BUTTON_RIGHT) {
+		return;
+	}
 	float fx = (mouse_pos.x - offset.x) / zoom;
 	float fy = (mouse_pos.y - offset.y) / zoom;
 	Color color = button == SDL_BUTTON_LEFT ? left_color : right_color;
@@ -255,7 +264,7 @@ static void tool_on_click(int button)
 	case BRUSH_ROUND:
 		use_brush(true, brush.size, color, fx, fy);
 		break;
-	case BRUSH_BLOCK:
+	case BRUSH_SQUARE:
 		use_brush(false, brush.size, color, fx, fy);
 		break;
 	case ERASER:
@@ -267,25 +276,142 @@ static void tool_on_click(int button)
 
 static void tool_on_move(void)
 {
-	if (tool == BRUSH_ROUND || tool == BRUSH_BLOCK || tool == ERASER) {
+	if (tool == BRUSH_ROUND || tool == BRUSH_SQUARE || tool == ERASER) {
 		tool_on_click(active_button);
 	}
 }
 
-static void poll_events(void)
+enum {
+	ALLOW_REPEAT = 1u << 0,
+};
+
+typedef union {
+	int i;
+} Arg;
+
+typedef void (*KeyActionFunc)(Arg arg, SDL_Keycode key, uint16_t mod);
+
+typedef struct {
+	SDL_Keycode key;
+	uint16_t mod;
+	uint16_t flag;
+	KeyActionFunc func;
+	Arg arg;
+} KeyAction;
+
+static void ka_zoom(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	zoom *= MAX(0.5f, 1.0f + arg.i * 0.15f);
+}
+
+static void ka_change_tool(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	if ((int) tool != arg.i) {
+		prev_tool = tool;
+		tool = arg.i;
+	} else if (arg.i == ERASER) {
+		tool = prev_tool;
+	}
+	if (tool == BRUSH_ROUND) {
+		brush_set_round(&brush, true);
+	} else if (tool == BRUSH_SQUARE || tool == ERASER) {
+		brush_set_round(&brush, false);
+	}
+}
+
+static void ka_brush_size(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	brush_resize(&brush, arg.i);
+}
+
+static void ka_undo_redo(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	if (arg.i < 0) {
+		canvas_undo(&canvas);
+	} else {
+		canvas_redo(&canvas);
+	}
+}
+
+static KeyAction const key_down_actions[] = {
+	{ SDLK_MINUS,   0,           ALLOW_REPEAT, ka_zoom,        {.i = -1} },
+	{ SDLK_EQUALS,  0,           ALLOW_REPEAT, ka_zoom,        {.i =  1} },
+	{ SDLK_b,       KMOD_LSHIFT, 0,            ka_change_tool, {.i = BRUSH_SQUARE} },
+	{ SDLK_b,       0,           0,            ka_change_tool, {.i = BRUSH_ROUND} },
+	{ SDLK_e,       0,           0,            ka_change_tool, {.i = ERASER} },
+	{ SDLK_LEFTBRACKET,  0,      ALLOW_REPEAT, ka_brush_size,  {.i = -1} },
+	{ SDLK_RIGHTBRACKET, 0,      ALLOW_REPEAT, ka_brush_size,  {.i =  1} },
+	{ SDLK_z,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i = -1} },
+	{ SDLK_y,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i =  1} },
+};
+
+static KeyAction const key_up_actions[] = {
+	{ SDLK_e, 0, 0, ka_change_tool, {.i = ERASER} },
+};
+
+// Used for both wheel and button events.
+// typedef void (*MouseActionFunc)(int x, int y, uint16_t mod);
+
+// TODO
+// typedef struct {
+// 	uint16_t mod;
+// 	uint16_t flag;
+// 	MouseActionFunc func;
+// 	Arg arg;
+// } WheelAction;
+
+// static void wa_zoom(int x, int y, uint16_t mod) {
+// 	ka_zoom((Arg) {.i = y}, 0, 0);
+// }
+
+// static WheelAction const wheel_actions[] = {
+// 	{ KMOD_LCTRL, 0, }
+// }
+
+static void poll_events()
 {
 	// Reset io state
 	for (size_t i = 0; i < LENGTH(just_clicked); ++i) {
 		just_clicked[i] = false;
 	}
 
-	SDL_Event e;
 	// TODO: Fix strange scroll wheel bug when using SDL_WaitEvent.
-	// SDL_WaitEvent(NULL);
+	SDL_WaitEvent(NULL);
+
+	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
 		switch (e.type) {
 		case SDL_QUIT:
 			exit(EXIT_SUCCESS);
+		case SDL_KEYDOWN:
+			for (size_t i = 0; i < LENGTH(key_down_actions); ++i) {
+				KeyAction a = key_down_actions[i];
+				SDL_Keysym keysym = e.key.keysym;
+				if (a.key == keysym.sym && (a.mod == 0 || (a.mod & keysym.mod) == a.mod) && (!e.key.repeat || (a.flag & ALLOW_REPEAT))) {
+					a.func(a.arg, keysym.sym, keysym.mod);
+					break;
+				}
+			}
+			break;
+		case SDL_KEYUP:
+			for (size_t i = 0; i < LENGTH(key_up_actions); ++i) {
+				KeyAction a = key_up_actions[i];
+				SDL_Keysym keysym = e.key.keysym;
+				if (a.key == keysym.sym && (a.mod == 0 || (a.mod & keysym.mod) == a.mod) && (!e.key.repeat || (a.flag & ALLOW_REPEAT))) {
+					a.func(a.arg, keysym.sym, keysym.mod);
+					break;
+				}
+			}
+			break;
+		case SDL_MOUSEWHEEL: {
+			int y = (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) ? -e.wheel.y : e.wheel.y;
+			if (SDL_GetModState() & KMOD_LCTRL) {
+				ka_zoom((Arg) {.i = y}, 0, 0);
+			} else {
+				brush_resize(&brush, y);
+			}
+			break; }
+		// TODO: OLD CODE BELOW!
 		case SDL_MOUSEBUTTONDOWN:
 			if ((e.button.button == SDL_BUTTON_MIDDLE) || (ctrl_down && e.button.button == SDL_BUTTON_LEFT)) {
 				// TODO: Set hand cursor
@@ -321,43 +447,6 @@ static void poll_events(void)
 				tool_on_move();
 			}
 			break;
-		case SDL_MOUSEWHEEL:
-			if (ctrl_down) {
-				zoom *= MAX(0.5f, 1.0f + e.wheel.y * 0.15f);
-			} else {
-				brush_resize(&brush, e.wheel.y);
-			}
-			break;
-		case SDL_KEYDOWN:
-			// TODO: Think of a better input handling system :/
-			if (e.key.keysym.scancode == SDL_SCANCODE_E) {
-				if (tool != ERASER) {
-					prev_tool = tool;
-					tool = ERASER;
-				}
-			} else if (e.key.keysym.scancode == SDL_SCANCODE_LCTRL) {
-				ctrl_down = true;
-			} else if (e.key.keysym.scancode == SDL_SCANCODE_LALT) {
-				alt_down = true;
-			} else if (e.key.keysym.scancode == SDL_SCANCODE_Z) {
-				if (e.key.keysym.mod & KMOD_LCTRL) {
-					canvas_undo(&canvas);
-				}
-			} else if (e.key.keysym.scancode == SDL_SCANCODE_Y) {
-				if (e.key.keysym.mod & KMOD_LCTRL) {
-					canvas_redo(&canvas);
-				}
-			}
-			break;
-		case SDL_KEYUP:
-			if (e.key.keysym.scancode == SDL_SCANCODE_LCTRL) {
-				ctrl_down = e.key.type == SDL_KEYDOWN;
-			} else if (e.key.keysym.scancode == SDL_SCANCODE_LALT) {
-				alt_down = e.key.type == SDL_KEYDOWN;
-			} else if (e.key.keysym.scancode == SDL_SCANCODE_E) {
-				tool = prev_tool;
-			}
-			break;
 		}
 	}
 }
@@ -378,12 +467,16 @@ int main(int argc, char *argv[])
 	if (win == NULL) {
 		fatalSDL("Could not create window");
 	}
-	ren = SDL_CreateRenderer(win, -1, 0);
+	ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	if (ren == NULL) {
+		// Try different flags
+		ren = SDL_CreateRenderer(win, -1, 0);
+	}
 	if (ren == NULL) {
 		fatalSDL("Could not create renderer");
 	}
 
-	canvas = canvas_create_with_background(40, 30, 0, ren);
+	canvas = canvas_create_with_background(40, 30, 0x00000000, ren);
 	// char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
 	// if (msg != NULL) {
 		// fatal("Could not open image: %s", msg);

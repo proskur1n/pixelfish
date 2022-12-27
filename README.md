@@ -4,8 +4,8 @@ Pixelfish is a work-in-progress pixel art editor.
 
 | Key        | Description         |
 |------------|---------------------|
-| B          | Square brush        |
-| Shift+B    | Round brush         |
+| B          | Round brush         |
+| Shift+B    | Square brush        |
 | E          | Eraser              |
 | [          | Decrease brush size |
 | ]          | Increase brush size |
