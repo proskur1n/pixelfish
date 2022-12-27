@@ -13,20 +13,22 @@ void *xalloc(size_t size)
 	return p;
 }
 
-void fatal(char const *format, ...)
+void def_fatal(char const *file, int line, char const *format, ...)
 {
 	va_list va;
 	va_start(va, format);
+	fprintf(stderr, "[pixelfish] %s:%d\n\t", file, line);
 	vfprintf(stderr, format, va);
 	fprintf(stderr, "\n");
 	va_end(va);
 	exit(EXIT_FAILURE);
 }
 
-void fatalSDL(char const *format, ...)
+void def_fatalSDL(char const *file, int line, char const *format, ...)
 {
 	va_list va;
 	va_start(va, format);
+	fprintf(stderr, "[pixelfish] %s:%d\n\t", file, line);
 	vfprintf(stderr, format, va);
 	va_end(va);
 
