@@ -216,7 +216,7 @@ static void render_user_interface(Theme theme)
 	}
 
 	char status[128];
-	snprintf(status, LENGTH(status), " Brush size: %d", brush.size);
+	snprintf(status, LENGTH(status), " Brush size: %d, History: [%d/%d]", brush.size, canvas.undo_left, canvas.undo_left + canvas.redo_left);
 	int tw = 0;
 	int th = 0;
 	TTF_SizeUTF8(font, status, &tw, &th);
@@ -241,6 +241,8 @@ static void use_brush(bool round, int size, Color color, float fx, float fy)
 			}
 		}
 	}
+
+	canvas_mark_dirty(&canvas, clip);
 }
 
 static void tool_on_click(int button)
@@ -261,9 +263,6 @@ static void tool_on_click(int button)
 	case TOOL_COUNT:
 		break;
 	}
-
-	// TODO: Do not update the whole texture.
-	SDL_UpdateTexture(canvas.texture, NULL, canvas.pixels, canvas.w * sizeof(Color));
 }
 
 static void tool_on_move(void)
@@ -305,6 +304,9 @@ static void poll_events(void)
 				// TODO: Reset cursor
 				panning = false;
 			} else if (e.button.button == active_button) {
+				if (drawing) {
+					canvas_commit(&canvas);
+				}
 				drawing = false;
 				active_button = 0;
 			}
@@ -337,6 +339,14 @@ static void poll_events(void)
 				ctrl_down = true;
 			} else if (e.key.keysym.scancode == SDL_SCANCODE_LALT) {
 				alt_down = true;
+			} else if (e.key.keysym.scancode == SDL_SCANCODE_Z) {
+				if (e.key.keysym.mod & KMOD_LCTRL) {
+					canvas_undo(&canvas);
+				}
+			} else if (e.key.keysym.scancode == SDL_SCANCODE_Y) {
+				if (e.key.keysym.mod & KMOD_LCTRL) {
+					canvas_redo(&canvas);
+				}
 			}
 			break;
 		case SDL_KEYUP:
@@ -373,17 +383,16 @@ int main(int argc, char *argv[])
 		fatalSDL("Could not create renderer");
 	}
 
-	// canvas = canvas_create_with_background(40, 30, 0, ren);
-	char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
-	if (msg != NULL) {
-		fatal("Could not open image: %s", msg);
-	}
+	canvas = canvas_create_with_background(40, 30, 0, ren);
+	// char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
+	// if (msg != NULL) {
+		// fatal("Could not open image: %s", msg);
+	// }
 
 	brush = brush_create(5, true);
 	palette = palette_get_default();
 	left_color = palette.colors[0];
-	// right_color = palette.colors[1];
-	right_color = 0x000000ff;
+	right_color = palette.colors[1];
 
 	while (true) {
 		poll_events();

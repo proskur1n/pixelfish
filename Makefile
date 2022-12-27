@@ -1,6 +1,6 @@
 WARNINGS := -Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS := -lSDL2 -lSDL2_ttf -lm
-CFLAGS := $(WARNINGS)
+CFLAGS := $(WARNINGS) -g
 
 SRCS := $(wildcard source/*.c)
 HEADERS := $(wildcard source/*.h)

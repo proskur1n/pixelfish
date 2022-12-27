@@ -4,7 +4,7 @@
 #include "brush.h"
 #include "util.h"
 
-static int const MIN_STENCIL_BYTES = 12 * 12;
+enum { MIN_STENCIL_BYTES = 12 * 12 };
 
 // The stencil buffer must have at least size * size elements.
 static void fill_stencil(uint8_t *stencil, int size, bool round)
