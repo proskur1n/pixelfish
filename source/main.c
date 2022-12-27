@@ -42,6 +42,7 @@ Brush brush;
 SDL_Texture *checkerboard;
 SDL_Point offset;
 float zoom = 15.0f;
+// int zoom = 15; // One image pixel takes up "zoom" pixels on the screen.
 bool panning;
 bool drawing; // TODO remove
 int active_button; // Mouse button used for drawing.
@@ -187,7 +188,7 @@ static void render_brush_outline(void)
 
 static void render_user_interface(Theme theme)
 {
-	if ((!ui_wants_mouse || drawing) && tool <= ERASER) {
+	if (!panning && (!ui_wants_mouse || drawing) && tool <= ERASER) {
 		render_brush_outline();
 	}
 
@@ -297,6 +298,7 @@ static void bucket_fill(float fx, float fy, Color color)
 		return;
 	}
 
+	// TODO: too large?
 	enum { STACK_CAP = 512 };
 	SDL_Point stack[STACK_CAP];
 	int s = 0;
@@ -386,6 +388,33 @@ static void tool_on_move(void)
 {
 	if (tool == BRUSH_ROUND || tool == BRUSH_SQUARE || tool == ERASER) {
 		tool_on_click(active_button);
+	}
+}
+
+// Set the current cursor to the specified cursor type. This function has a cache of cursors for
+// better performance. You can pass a negative value for cursor to free this internal cache.
+static void set_cursor(SDL_SystemCursor cursor)
+{
+	static SDL_Cursor *cache[SDL_NUM_SYSTEM_CURSORS];
+	static SDL_SystemCursor current = SDL_SYSTEM_CURSOR_ARROW;
+
+	if (cursor < 0) {
+		// Free all allocated cursors.
+		for (int i = 0; i < SDL_NUM_SYSTEM_CURSORS; ++i) {
+			if (cache[i] != NULL) {
+				SDL_FreeCursor(cache[i]);
+			}
+		}
+		return;
+	}
+
+	assert(cursor >= 0 && cursor < SDL_NUM_SYSTEM_CURSORS);
+	if (cache[cursor] == NULL) {
+		cache[cursor] = SDL_CreateSystemCursor(cursor);
+	}
+	if (current != cursor) {
+		SDL_SetCursor(cache[cursor]);
+		current = cursor;
 	}
 }
 
@@ -526,7 +555,7 @@ static void poll_events()
 		// TODO: OLD CODE BELOW!
 		case SDL_MOUSEBUTTONDOWN:
 			if ((e.button.button == SDL_BUTTON_MIDDLE) || (ctrl_down && e.button.button == SDL_BUTTON_LEFT)) {
-				// TODO: Set hand cursor
+				set_cursor(SDL_SYSTEM_CURSOR_HAND);
 				panning = true;
 			} else {
 				just_clicked[e.button.button] = true;
@@ -539,7 +568,7 @@ static void poll_events()
 			break;
 		case SDL_MOUSEBUTTONUP:
 			if (panning) {
-				// TODO: Reset cursor
+				set_cursor(SDL_SYSTEM_CURSOR_ARROW);
 				panning = false;
 			} else if (e.button.button == active_button) {
 				if (drawing) {
