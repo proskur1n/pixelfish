@@ -147,7 +147,8 @@ void canvas_commit(Canvas *canvas)
 	memset(&canvas->dirty, 0, sizeof(canvas->dirty));
 }
 
-// Reverts an uncommited dirty region to its initial state. Dirty region will be reset to zero.
+// Reverts any changes made to the dirty region after the last commit. The region itself will be
+// reset to zero.
 static void revert_uncommited_changes(Canvas *canvas)
 {
 	SDL_Rect dirty = canvas->dirty;

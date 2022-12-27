@@ -24,7 +24,7 @@ typedef enum {
 	BRUSH_ROUND,
 	BRUSH_SQUARE,
 	ERASER,
-	// COLOR_PICKER,
+	COLOR_PICKER,
 	// BUCKET_FILL,
 	TOOL_COUNT // Must be the last element.
 } ToolEnum;
@@ -185,17 +185,9 @@ static void render_brush_outline(void)
 	SDL_SetRenderDrawBlendMode(ren, oldBlend);
 }
 
-static char const *tool_name[TOOL_COUNT] = {
-	[BRUSH_ROUND] = "Round brush",
-	[BRUSH_SQUARE] = "Square brush",
-	[ERASER] = "Eraser",
-	// COLOR_PICKER,
-	// BUCKET_FILL,
-};
-
 static void render_user_interface(Theme theme)
 {
-	if (!ui_wants_mouse || drawing) {
+	if ((!ui_wants_mouse || drawing) && tool <= ERASER) {
 		render_brush_outline();
 	}
 
@@ -220,6 +212,14 @@ static void render_user_interface(Theme theme)
 		fill_rect(c[i], x, y, color_width, color_width);
 		render_string(theme, str, x + color_width, y, color_width);
 	}
+
+	char const * const tool_name[TOOL_COUNT] = {
+		[BRUSH_ROUND] = "Round brush",
+		[BRUSH_SQUARE] = "Square brush",
+		[ERASER] = "Eraser",
+		[COLOR_PICKER] = "Color picker",
+		// BUCKET_FILL,
+	};
 
 	char status[128];
 	snprintf(status, LENGTH(status), " %s (%d) | History: [%d/%d]", tool_name[tool], brush.size, canvas.undo_left, canvas.undo_left + canvas.redo_left);
@@ -251,6 +251,15 @@ static void use_brush(bool round, int size, Color color, float fx, float fy)
 	canvas_mark_dirty(&canvas, clip);
 }
 
+static void pick_color(Color *out, float fx, float fy)
+{
+	int x = (int) fx;
+	int y = (int) fy;
+	if (x >= 0 && y >= 0 && x < canvas.w && y < canvas.h) {
+		*out = canvas.pixels[y * canvas.w + x];
+	}
+}
+
 static void tool_on_click(int button)
 {
 	if (button != SDL_BUTTON_LEFT && button != SDL_BUTTON_RIGHT) {
@@ -269,8 +278,16 @@ static void tool_on_click(int button)
 		break;
 	case ERASER:
 		use_brush(true, brush.size, 0, fx, fy);
-	case TOOL_COUNT:
 		break;
+	case COLOR_PICKER:
+		if (button == SDL_BUTTON_LEFT) {
+			pick_color(&left_color, fx, fy);
+		} else {
+			pick_color(&right_color, fx, fy);
+		}
+		break;
+	default:
+		fatal("unreachable");
 	}
 }
 
@@ -309,7 +326,7 @@ static void ka_change_tool(Arg arg, SDL_Keycode key, uint16_t mod)
 	if ((int) tool != arg.i) {
 		prev_tool = tool;
 		tool = arg.i;
-	} else if (arg.i == ERASER) {
+	} else if (arg.i == ERASER || arg.i == COLOR_PICKER) {
 		tool = prev_tool;
 	}
 	if (tool == BRUSH_ROUND) {
@@ -343,10 +360,12 @@ static KeyAction const key_down_actions[] = {
 	{ SDLK_RIGHTBRACKET, 0,      ALLOW_REPEAT, ka_brush_size,  {.i =  1} },
 	{ SDLK_z,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i = -1} },
 	{ SDLK_y,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i =  1} },
+	{ SDLK_LALT,    0,           0,            ka_change_tool, {.i = COLOR_PICKER} },
 };
 
 static KeyAction const key_up_actions[] = {
-	{ SDLK_e, 0, 0, ka_change_tool, {.i = ERASER} },
+	{ SDLK_e,    0, 0, ka_change_tool, {.i = ERASER} },
+	{ SDLK_LALT, 0, 0, ka_change_tool, {.i = COLOR_PICKER} },
 };
 
 // Used for both wheel and button events.
