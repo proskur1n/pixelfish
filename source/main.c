@@ -25,7 +25,7 @@ typedef enum {
 	BRUSH_SQUARE,
 	ERASER,
 	COLOR_PICKER,
-	// BUCKET_FILL,
+	BUCKET_FILL,
 	TOOL_COUNT // Must be the last element.
 } ToolEnum;
 
@@ -218,7 +218,7 @@ static void render_user_interface(Theme theme)
 		[BRUSH_SQUARE] = "Square brush",
 		[ERASER] = "Eraser",
 		[COLOR_PICKER] = "Color picker",
-		// BUCKET_FILL,
+		[BUCKET_FILL] = "Bucket",
 	};
 
 	char status[128];
@@ -260,6 +260,90 @@ static void pick_color(Color *out, float fx, float fy)
 	}
 }
 
+// Checks whether pixels(x, y) should be replaced by a new color during the flood fill. Internal
+// function for bucket_fill.
+static bool bucket_fill__test(int x, int y, Color replace_this)
+{
+	if (x < 0 || y < 0 || x >= canvas.w || y >= canvas.h) {
+		return false;
+	}
+	return canvas.pixels[y * canvas.w + x] == replace_this;
+}
+
+// Internal function for bucket_fill.
+static void bucket_fill__scan(int lx, int rx, int y, Color replace_this, SDL_Point *stack, int stack_cap, int *s)
+{
+	bool span_added = false;
+	for (int x = lx; x <= rx; ++x) {
+		if (!bucket_fill__test(x, y, replace_this)) {
+			span_added = false;
+		} else if (!span_added) {
+			if (*s + 1 > stack_cap) {
+				return;
+			}
+			stack[(*s)++] = (SDL_Point) {x, y};
+			span_added = true;
+		}
+	}
+}
+
+// A moderately efficient Span-Filling algorithm from Wikipedia
+// https://en.wikipedia.org/wiki/Flood_fill#Span_Filling
+static void bucket_fill(float fx, float fy, Color color)
+{
+	int x = (int) fx;
+	int y = (int) fy;
+	if (x < 0 || y < 0 || x >= canvas.w || y >= canvas.h) {
+		return;
+	}
+
+	enum { STACK_CAP = 512 };
+	SDL_Point stack[STACK_CAP];
+	int s = 0;
+	Color replace_this = canvas.pixels[y * canvas.w + x];
+	int minX = x, maxX = x;
+	int minY = y, maxY = y;
+	stack[s++] = (SDL_Point) {x, y};
+
+	if (replace_this == color) {
+		// Fast out, replacing a color by itself has no effect.
+		return;
+	}
+
+	while (s > 0) {
+		SDL_Point p = stack[--s];
+		int lx = p.x;
+		while (bucket_fill__test(lx - 1, p.y, replace_this)) {
+			canvas.pixels[p.y * canvas.w + lx - 1] = color;
+			--lx;
+		}
+		int rx = p.x;
+		while (bucket_fill__test(rx, p.y, replace_this)) {
+			canvas.pixels[p.y * canvas.w + rx] = color;
+			++rx;
+		}
+		--rx;
+
+		if (lx < minX) {
+			minX = lx;
+		}
+		if (rx > maxX) {
+			maxX = rx;
+		}
+		if (p.y < minY) {
+			minY = p.y;
+		} else if (p.y > maxY) {
+			maxY = p.y;
+		}
+
+		bucket_fill__scan(lx, rx, p.y - 1, replace_this, stack, STACK_CAP, &s);
+		bucket_fill__scan(lx, rx, p.y + 1, replace_this, stack, STACK_CAP, &s);
+	}
+
+	SDL_Rect changed = {minX, minY, maxX - minX + 1, maxY - minY + 1};
+	canvas_mark_dirty(&canvas, changed);
+}
+
 static void tool_on_click(int button)
 {
 	if (button != SDL_BUTTON_LEFT && button != SDL_BUTTON_RIGHT) {
@@ -286,7 +370,14 @@ static void tool_on_click(int button)
 			pick_color(&right_color, fx, fy);
 		}
 		break;
-	default:
+	case BUCKET_FILL:
+		if (button == SDL_BUTTON_LEFT) {
+			bucket_fill(fx, fy, left_color);
+		} else {
+			bucket_fill(fx, fy, right_color);
+		}
+		break;
+	case TOOL_COUNT:
 		fatal("unreachable");
 	}
 }
@@ -326,10 +417,10 @@ static void ka_change_tool(Arg arg, SDL_Keycode key, uint16_t mod)
 	if ((int) tool != arg.i) {
 		prev_tool = tool;
 		tool = arg.i;
-	} else if (arg.i == ERASER || arg.i == COLOR_PICKER) {
+	} else if (arg.i == ERASER || arg.i == COLOR_PICKER || arg.i == BUCKET_FILL) {
 		tool = prev_tool;
 	}
-	if (tool == BRUSH_ROUND) {
+	if (tool == BRUSH_ROUND || (tool == ERASER && prev_tool == BRUSH_ROUND)) {
 		brush_set_round(&brush, true);
 	} else if (tool == BRUSH_SQUARE || tool == ERASER) {
 		brush_set_round(&brush, false);
@@ -356,6 +447,7 @@ static KeyAction const key_down_actions[] = {
 	{ SDLK_b,       KMOD_LSHIFT, 0,            ka_change_tool, {.i = BRUSH_SQUARE} },
 	{ SDLK_b,       0,           0,            ka_change_tool, {.i = BRUSH_ROUND} },
 	{ SDLK_e,       0,           0,            ka_change_tool, {.i = ERASER} },
+	{ SDLK_g,       0,           0,            ka_change_tool, {.i = BUCKET_FILL} },
 	{ SDLK_LEFTBRACKET,  0,      ALLOW_REPEAT, ka_brush_size,  {.i = -1} },
 	{ SDLK_RIGHTBRACKET, 0,      ALLOW_REPEAT, ka_brush_size,  {.i =  1} },
 	{ SDLK_z,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i = -1} },
@@ -366,6 +458,7 @@ static KeyAction const key_down_actions[] = {
 static KeyAction const key_up_actions[] = {
 	{ SDLK_e,    0, 0, ka_change_tool, {.i = ERASER} },
 	{ SDLK_LALT, 0, 0, ka_change_tool, {.i = COLOR_PICKER} },
+	{ SDLK_g,    0, 0, ka_change_tool, {.i = BUCKET_FILL} },
 };
 
 // Used for both wheel and button events.
