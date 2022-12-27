@@ -495,11 +495,11 @@ int main(int argc, char *argv[])
 		fatalSDL("Could not create renderer");
 	}
 
-	canvas = canvas_create_with_background(40, 30, 0x00000000, ren);
-	// char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
-	// if (msg != NULL) {
-		// fatal("Could not open image: %s", msg);
-	// }
+	// canvas = canvas_create_with_background(40, 30, 0x00000000, ren);
+	char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
+	if (msg != NULL) {
+		fatal("Could not open image: %s", msg);
+	}
 
 	brush = brush_create(5, true);
 	palette = palette_get_default();

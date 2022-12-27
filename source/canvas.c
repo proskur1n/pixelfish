@@ -46,21 +46,15 @@ char const *canvas_open_image(Canvas *out_result, char const *filepath, SDL_Rend
 	if (rgba == NULL) {
 		return stbi_failure_reason();
 	}
-
-	// Convert endianness
-	for (int i = 0; i < width * height; ++i) {
-		// TODO: Use SDL_Swap* functions
-		union {
-			uint32_t ui;
-			struct { uint8_t r, g, b, a; };
-		} u = { rgba[i] };
-		rgba[i] = (u.r << 24) | (u.g << 16) | (u.b << 8) | u.a;
-	}
-
 	if (width == 0 || height == 0) {
 		// No idea if this can actually happen :/
 		free(rgba);
 		return "Empty image";
+	}
+
+	// Convert endianness
+	for (int i = 0; i < width * height; ++i) {
+		rgba[i] = SDL_SwapBE32(rgba[i]);
 	}
 
 	*out_result = canvas_create_from_memory(width, height, rgba, ren);
