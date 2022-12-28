@@ -41,8 +41,7 @@ Canvas canvas;
 Brush brush;
 SDL_Texture *checkerboard;
 SDL_Point offset;
-float zoom = 15.0f;
-// int zoom = 15; // One image pixel takes up "zoom" pixels on the screen.
+float zoom = 15.0f; // One image pixel takes up "zoom" pixels on the screen.
 bool panning;
 bool drawing; // TODO remove
 int active_button; // Mouse button used for drawing.
@@ -290,6 +289,7 @@ static void pick_color(Color *out, float fx, float fy)
 // function for bucket_fill.
 static bool bucket_fill__test(int x, int y, Color replace_this)
 {
+	// TODO: This function can (and probably should) be removed.
 	if (x < 0 || y < 0 || x >= canvas.w || y >= canvas.h) {
 		return false;
 	}
@@ -443,6 +443,52 @@ static void set_cursor(SDL_SystemCursor cursor)
 	}
 }
 
+// Makes the canvas visible again if it goes too far off the screen.
+static void constrain_canvas(void)
+{
+	int w, h;
+	SDL_GetWindowSize(win, &w, &h);
+	int const min_visible_pixels = 20;
+
+	if (offset.x + canvas.w * zoom < min_visible_pixels) {
+		offset.x = min_visible_pixels - canvas.w * zoom;
+	}
+	if (w - offset.x < min_visible_pixels) {
+		offset.x = w - min_visible_pixels;
+	}
+
+	if (offset.y + canvas.h * zoom < min_visible_pixels) {
+		offset.y = min_visible_pixels - canvas.h * zoom;
+	}
+	if (h - offset.y < min_visible_pixels) {
+		offset.y = h - min_visible_pixels;
+	}
+}
+
+// Amount can be both positive and genative.
+static void change_zoom(int amount)
+{
+	int x, y;
+	SDL_GetMouseState(&x, &y);
+
+	float mult = 1.0f + amount * 0.15f;
+	if (mult < 0.5f) {
+		mult = 0.5f;
+	}
+
+	float old_zoom = zoom;
+	zoom *= mult;
+	if (zoom > 40.0f) {
+		zoom = 40.0f;
+	} else if (zoom < 2.0f) {
+		zoom = 2.0f;
+	}
+
+	offset.x = x - (x - offset.x) * zoom / old_zoom;
+	offset.y = y - (y - offset.y) * zoom / old_zoom;
+	constrain_canvas();
+}
+
 enum {
 	ALLOW_REPEAT = 1u << 0,
 };
@@ -463,7 +509,7 @@ typedef struct {
 
 static void ka_zoom(Arg arg, SDL_Keycode key, uint16_t mod)
 {
-	zoom *= MAX(0.5f, 1.0f + arg.i * 0.15f);
+	change_zoom(arg.i);
 }
 
 static void ka_change_tool(Arg arg, SDL_Keycode key, uint16_t mod)
@@ -572,7 +618,7 @@ static void poll_events()
 		case SDL_MOUSEWHEEL: {
 			int y = (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) ? -e.wheel.y : e.wheel.y;
 			if (SDL_GetModState() & KMOD_LCTRL) {
-				ka_zoom((Arg) {.i = y}, 0, 0);
+				change_zoom(y);
 			} else {
 				brush_resize(&brush, y);
 			}
@@ -609,6 +655,7 @@ static void poll_events()
 			if (panning) {
 				offset.x += e.motion.xrel;
 				offset.y += e.motion.yrel;
+				constrain_canvas();
 			} else if (drawing) {
 				tool_on_move();
 			}
