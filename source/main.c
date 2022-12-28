@@ -136,54 +136,79 @@ static void render_clickable_color_pin(Color color, int x, int y, int w)
 	}
 }
 
-static inline bool is_brush(int x, int y)
-{
-	if (x < 0 || y < 0 || x >= brush.size || y >= brush.size) {
-		return false;
-	}
-	return brush.stencil[y * brush.size + x];
-}
-
 static void render_brush_outline(void)
 {
-	// TODO: Decide on the blend factor / operation.
-	SDL_BlendMode oldBlend = {0};
-	SDL_GetRenderDrawBlendMode(ren, &oldBlend);
-	SDL_BlendMode mode = SDL_ComposeCustomBlendMode(
-		SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR,
-		// SDL_BLENDFACTOR_ZERO,
-		SDL_BLENDFACTOR_ZERO,
-		SDL_BLENDOPERATION_ADD,
-		SDL_BLENDFACTOR_ONE,
-		SDL_BLENDFACTOR_ONE,
-		SDL_BLENDOPERATION_ADD);
-	if (SDL_SetRenderDrawBlendMode(ren, mode) < 0) {
-		fatalSDL("SDL_SetRenderDrawBlendMode");
+	static SDL_BlendMode inverted_blend = 0;
+	if (inverted_blend == 0) {
+		inverted_blend = SDL_ComposeCustomBlendMode(
+			SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR,
+			SDL_BLENDFACTOR_ZERO,
+			SDL_BLENDOPERATION_ADD,
+			SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR,
+			SDL_BLENDFACTOR_ZERO,
+			SDL_BLENDOPERATION_ADD
+		);
+	}
+
+	Color src_color = 0xffffffff;
+	SDL_BlendMode old_blend = 0;
+	SDL_GetRenderDrawBlendMode(ren, &old_blend);
+
+	if (SDL_SetRenderDrawBlendMode(ren, inverted_blend) < 0) {
+		// Fallback to a simpler blend mode.
+		src_color = 0x000000ff;
 	}
 
 	float fx = (mouse_pos.x - offset.x) / zoom;
 	float fy = (mouse_pos.y - offset.y) / zoom;
 	SDL_Rect brect = get_brush_rect(brush.size, fx, fy);
-	int thickness = 2;
+	int const thickness = 2;
 
-	int qy = brect.y * zoom + offset.y;
+	// Horizontal lines
 	for (int y = 0; y <= brush.size; ++y) {
-		int qx = brect.x * zoom + offset.x;
+		int line_start = -1;
+		bool left = false;
 		for (int x = 0; x <= brush.size; ++x) {
-			bool cur = is_brush(x, y);
-			if (is_brush(x - 1, y) != cur) {
-				// TODO: FIX: too many state changes because of fill_rect
-				fill_rect(0xffffffff, qx, qy, cur ? -thickness : thickness, zoom);
+			bool cur = x < brush.size && y < brush.size && brush.stencil[y * brush.size + x];
+			bool top = y > 0 && x < brush.size && brush.stencil[(y - 1) * brush.size + x];
+			if (line_start >= 0 && (cur == top || cur != left)) {
+				// Finish previous line
+				int qx = offset.x + (brect.x + line_start) * zoom;
+				int qy = offset.y + (brect.y + y) * zoom;
+				fill_rect(src_color, qx, qy, (x - line_start) * zoom, left ? -thickness : thickness);
+				line_start = -1;
 			}
-			if (is_brush(x, y - 1) != cur) {
-				fill_rect(0xffffffff, qx, qy, zoom, cur ? -thickness : thickness);
+			if (cur != top && line_start < 0) {
+				// Start a new line
+				line_start = x;
 			}
-			qx += zoom;
+			left = cur;
 		}
-		qy += zoom;
 	}
 
-	SDL_SetRenderDrawBlendMode(ren, oldBlend);
+	// Vertical lines
+	for (int x = 0; x <= brush.size; ++x) {
+		int line_start = -1;
+		bool top = false;
+		for (int y = 0; y <= brush.size; ++y) {
+			bool cur = x < brush.size && y < brush.size && brush.stencil[y * brush.size + x];
+			bool left = x > 0 && y < brush.size && brush.stencil[y * brush.size + x - 1];
+			if (line_start >= 0 && (cur == left || cur != top)) {
+				// Finish previous line
+				int qx = offset.x + (brect.x + x) * zoom;
+				int qy = offset.y + (brect.y + line_start) * zoom;
+				fill_rect(src_color, qx, qy, top ? -thickness : thickness, (y - line_start) * zoom);
+				line_start = -1;
+			}
+			if (cur != left && line_start < 0) {
+				// Start a new line
+				line_start = y;
+			}
+			top = cur;
+		}
+	}
+
+	SDL_SetRenderDrawBlendMode(ren, old_blend);
 }
 
 static void render_user_interface(Theme theme)
