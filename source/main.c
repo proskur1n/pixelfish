@@ -53,8 +53,8 @@ bool just_clicked[6];
 // Transforms the relative scaled coordinates to indices inside the canvas's color buffer.
 static SDL_Rect get_brush_rect(int size, float fx, float fy)
 {
-	int x = (int) (size & 1 ? fx : roundf(fx));
-	int y = (int) (size & 1 ? fy : roundf(fy));
+	int x = (int) (size & 1 ? floorf(fx) : roundf(fx));
+	int y = (int) (size & 1 ? floorf(fy) : roundf(fy));
 	SDL_Rect rect = {x - size / 2, y - size / 2, size, size};
 	return rect;
 }
@@ -285,23 +285,12 @@ static void pick_color(Color *out, float fx, float fy)
 	}
 }
 
-// Checks whether pixels(x, y) should be replaced by a new color during the flood fill. Internal
-// function for bucket_fill.
-static bool bucket_fill__test(int x, int y, Color replace_this)
-{
-	// TODO: This function can (and probably should) be removed.
-	if (x < 0 || y < 0 || x >= canvas.w || y >= canvas.h) {
-		return false;
-	}
-	return canvas.pixels[y * canvas.w + x] == replace_this;
-}
-
 // Internal function for bucket_fill.
-static void bucket_fill__scan(int lx, int rx, int y, Color replace_this, SDL_Point *stack, int stack_cap, int *s)
+static void bucket_fill__scan(int from, int to, int y, Color replace_this, SDL_Point *stack, int stack_cap, int *s)
 {
 	bool span_added = false;
-	for (int x = lx; x <= rx; ++x) {
-		if (!bucket_fill__test(x, y, replace_this)) {
+	for (int x = from; x <= to; ++x) {
+		if (canvas.pixels[y * canvas.w + x] != replace_this) {
 			span_added = false;
 		} else if (!span_added) {
 			if (*s + 1 > stack_cap) {
@@ -323,8 +312,7 @@ static void bucket_fill(float fx, float fy, Color color)
 		return;
 	}
 
-	// TODO: too large?
-	enum { STACK_CAP = 512 };
+	enum { STACK_CAP = 128 };
 	SDL_Point stack[STACK_CAP];
 	int s = 0;
 	Color replace_this = canvas.pixels[y * canvas.w + x];
@@ -339,23 +327,25 @@ static void bucket_fill(float fx, float fy, Color color)
 
 	while (s > 0) {
 		SDL_Point p = stack[--s];
-		int lx = p.x;
-		while (bucket_fill__test(lx - 1, p.y, replace_this)) {
-			canvas.pixels[p.y * canvas.w + lx - 1] = color;
-			--lx;
-		}
-		int rx = p.x;
-		while (bucket_fill__test(rx, p.y, replace_this)) {
-			canvas.pixels[p.y * canvas.w + rx] = color;
-			++rx;
-		}
-		--rx;
 
-		if (lx < minX) {
-			minX = lx;
+		int from = p.x;
+		while (from > 0 && canvas.pixels[p.y * canvas.w + from - 1] == replace_this) {
+			canvas.pixels[p.y * canvas.w + from - 1] = color;
+			--from;
 		}
-		if (rx > maxX) {
-			maxX = rx;
+
+		int to = p.x;
+		while (to < canvas.w && canvas.pixels[p.y * canvas.w + to] == replace_this) {
+			canvas.pixels[p.y * canvas.w + to] = color;
+			++to;
+		}
+		--to;
+
+		if (from < minX) {
+			minX = from;
+		}
+		if (to > maxX) {
+			maxX = to;
 		}
 		if (p.y < minY) {
 			minY = p.y;
@@ -363,8 +353,12 @@ static void bucket_fill(float fx, float fy, Color color)
 			maxY = p.y;
 		}
 
-		bucket_fill__scan(lx, rx, p.y - 1, replace_this, stack, STACK_CAP, &s);
-		bucket_fill__scan(lx, rx, p.y + 1, replace_this, stack, STACK_CAP, &s);
+		if (p.y > 0) {
+			bucket_fill__scan(from, to, p.y - 1, replace_this, stack, STACK_CAP, &s);
+		}
+		if (p.y + 1 < canvas.h) {
+			bucket_fill__scan(from, to, p.y + 1, replace_this, stack, STACK_CAP, &s);
+		}
 	}
 
 	SDL_Rect changed = {minX, minY, maxX - minX + 1, maxY - minY + 1};
@@ -448,7 +442,7 @@ static void constrain_canvas(void)
 {
 	int w, h;
 	SDL_GetWindowSize(win, &w, &h);
-	int const min_visible_pixels = 20;
+	int const min_visible_pixels = 40;
 
 	if (offset.x + canvas.w * zoom < min_visible_pixels) {
 		offset.x = min_visible_pixels - canvas.w * zoom;
@@ -478,8 +472,8 @@ static void change_zoom(int amount)
 
 	float old_zoom = zoom;
 	zoom *= mult;
-	if (zoom > 40.0f) {
-		zoom = 40.0f;
+	if (zoom > 45.0f) {
+		zoom = 45.0f;
 	} else if (zoom < 2.0f) {
 		zoom = 2.0f;
 	}
@@ -689,11 +683,11 @@ int main(int argc, char *argv[])
 		fatalSDL("Could not create renderer");
 	}
 
-	// canvas = canvas_create_with_background(40, 30, 0x00000000, ren);
-	char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
-	if (msg != NULL) {
-		fatal("Could not open image: %s", msg);
-	}
+	canvas = canvas_create_with_background(8, 8, 0x00000000, ren);
+	// char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
+	// if (msg != NULL) {
+	// 	fatal("Could not open image: %s", msg);
+	// }
 
 	brush = brush_create(5, true);
 	palette = palette_get_default();
