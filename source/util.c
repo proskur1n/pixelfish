@@ -41,7 +41,7 @@ void def_fatalSDL(char const *file, int line, char const *format, ...)
 	exit(EXIT_FAILURE);
 }
 
-void *xmemdup(void *src, size_t n)
+void *xmemdup(void const *src, size_t n)
 {
 	void *dest = malloc(n);
 	if (!dest) {

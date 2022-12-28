@@ -398,7 +398,7 @@ static void tool_on_click(int button)
 		}
 		break;
 	case TOOL_COUNT:
-		fatal("unreachable");
+		unreachable();
 	}
 }
 
@@ -458,7 +458,7 @@ static void constrain_canvas(void)
 	}
 }
 
-// Amount can be both positive and genative.
+// Amount can be both positive and negative.
 static void change_zoom(int amount)
 {
 	int x, y;
@@ -534,6 +534,28 @@ static void ka_undo_redo(Arg arg, SDL_Keycode key, uint16_t mod)
 	}
 }
 
+static void ka_save_file(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	CanvasFileStatus status;
+	if (arg.i == 0) {
+		status = canvas_save_to_file(&canvas, NULL);
+	} else {
+		status = canvas_save_as_to_file(&canvas);
+	}
+	// TODO: handle errors
+	switch (status) {
+	case CF_OK:
+	case CF_CANCELLED_BY_USER:
+		break;
+	case CF_UNKNOWN_IMAGE_FORMAT:
+		break;
+	case CF_OTHER_ERROR:
+		break;
+	case CF_COUNT:
+		unreachable();
+	}
+}
+
 static KeyAction const key_down_actions[] = {
 	{ SDLK_MINUS,   0,           ALLOW_REPEAT, ka_zoom,        {.i = -1} },
 	{ SDLK_EQUALS,  0,           ALLOW_REPEAT, ka_zoom,        {.i =  1} },
@@ -546,6 +568,8 @@ static KeyAction const key_down_actions[] = {
 	{ SDLK_z,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i = -1} },
 	{ SDLK_y,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i =  1} },
 	{ SDLK_LALT,    0,           0,            ka_change_tool, {.i = COLOR_PICKER} },
+	{ SDLK_s,       KMOD_LCTRL|KMOD_LSHIFT, 0, ka_save_file,   {.i = 1} },
+	{ SDLK_s,       KMOD_LCTRL,  0,            ka_save_file,   {.i = 0} },
 };
 
 static KeyAction const key_up_actions[] = {

@@ -1,6 +1,7 @@
 #include <assert.h>
 #include "canvas.h"
 #include "util.h"
+#include "dialog.h"
 
 Canvas canvas_create_from_memory(int w, int h, Color *pixels, SDL_Renderer *ren)
 {
@@ -58,16 +59,21 @@ char const *canvas_open_image(Canvas *out_result, char const *filepath, SDL_Rend
 	}
 
 	*out_result = canvas_create_from_memory(width, height, rgba, ren);
+	out_result->filepath = xmemdup(filepath, strlen(filepath) + 1);
 	return NULL;
 }
 
 void canvas_free(Canvas c)
 {
-	free(c.pixels);
-	free(c.pixels_backup);
 	if (c.texture != NULL) {
 		SDL_DestroyTexture(c.texture);
 	}
+	free(c.pixels);
+	free(c.pixels_backup);
+	for (size_t i = 0; i < LENGTH(c.history); ++i) {
+		free(c.history[i]);
+	}
+	free((char *) c.filepath);
 }
 
 // Uploads pixels in the specified region to the texture.
@@ -84,6 +90,7 @@ static void update_texture(Canvas *canvas, SDL_Rect rect)
 		memcpy(dest, src, rect.w * sizeof(Color));
 	}
 	SDL_UnlockTexture(canvas->texture);
+	canvas->has_unsaved_changes = true;
 }
 
 void canvas_mark_dirty(Canvas *canvas, SDL_Rect region)
@@ -132,6 +139,7 @@ void canvas_commit(Canvas *canvas)
 		}
 	}
 
+	free(canvas->history[canvas->next_hist]);
 	canvas->history[canvas->next_hist] = up;
 	canvas->next_hist = (canvas->next_hist + 1) % MAX_UNDO_LENGTH;
 	if (canvas->undo_left < MAX_UNDO_LENGTH) {
@@ -187,10 +195,11 @@ bool canvas_undo(Canvas *canvas)
 	--canvas->undo_left;
 	++canvas->redo_left;
 
-	canvas->next_hist = (canvas->next_hist - 1) % MAX_UNDO_LENGTH;
-	if (canvas->next_hist == -1) {
+	if (canvas->next_hist == 0) {
 		// Wrap over
 		canvas->next_hist = MAX_UNDO_LENGTH - 1;
+	} else {
+		--canvas->next_hist;
 	}
 	swap_pixels(canvas, canvas->history[canvas->next_hist]);
 	return true;
@@ -212,4 +221,78 @@ bool canvas_redo(Canvas *canvas)
 	swap_pixels(canvas, canvas->history[canvas->next_hist]);
 	canvas->next_hist = (canvas->next_hist + 1) % MAX_UNDO_LENGTH;
 	return true;
+}
+
+// TODO: What formats should we actually support?
+int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
+// int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
+// int stbi_write_tga(char const *filename, int w, int h, int comp, const void *data);
+int stbi_write_jpg(char const *filename, int w, int h, int comp, const void *data, int quality);
+// int stbi_write_hdr(char const *filename, int w, int h, int comp, const float *data);
+
+CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
+{
+	if (!canvas->has_unsaved_changes && filepath == NULL) {
+		return CF_OK;
+	}
+
+	if (filepath == NULL) {
+		filepath = canvas->filepath;
+	}
+	if (filepath == NULL) {
+		filepath = dialog_save_file("Save File");
+	} else {
+		filepath = xmemdup(filepath, strlen(filepath) + 1);
+	}
+	if (filepath == NULL) {
+		return CF_CANCELLED_BY_USER;
+	}
+
+	if (SDL_BYTEORDER == SDL_LIL_ENDIAN) {
+		// stbi expects the image data to be in the RGBA order. Therefore, we must do a conversion
+		// because we store pixels as endianness-dependent numbers.
+		for (int i = 0; i < canvas->w * canvas->h; ++i) {
+			canvas->pixels[i] = SDL_Swap32(canvas->pixels[i]);
+		}
+	}
+
+	int success = 0;
+	int unknown_format = 0;
+	char const *ext = strrchr(filepath, '.');
+	if (ext == NULL || strcmp(ext, ".png") == 0) {
+		success = stbi_write_png(filepath, canvas->w, canvas->h, 4, canvas->pixels, 0);
+	} else {
+		unknown_format = 1;
+	}
+
+	if (SDL_BYTEORDER == SDL_LIL_ENDIAN) {
+		// Swap the bytes back to their original ordering.
+		for (int i = 0; i < canvas->w * canvas->h; ++i) {
+			canvas->pixels[i] = SDL_Swap32(canvas->pixels[i]);
+		}
+	}
+
+	if (success) {
+		free((char *) canvas->filepath);
+		canvas->filepath = filepath;
+		canvas->has_unsaved_changes = false;
+		return CF_OK;
+	}
+
+	free((char *) filepath); // Discard const because filepath is now a copy.
+	if (unknown_format) {
+		return CF_UNKNOWN_IMAGE_FORMAT;
+	}
+	return CF_OTHER_ERROR;
+}
+
+CanvasFileStatus canvas_save_as_to_file(Canvas *canvas)
+{
+	char *filepath = dialog_save_file("Save As");
+	if (filepath == NULL) {
+		return CF_CANCELLED_BY_USER;
+	}
+	CanvasFileStatus status = canvas_save_to_file(canvas, filepath);
+	free(filepath); // canvas_save_to_file creates a copy of filepath.
+	return status;
 }

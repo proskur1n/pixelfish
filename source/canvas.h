@@ -22,6 +22,9 @@ typedef struct {
 	int undo_left; // Remaining amount of undo steps (<= MAX_UNDO_LENGTH)
 	int redo_left; // Amount of redo operations left. Every successful undo increments this counter.
 	SDL_Rect dirty; // Difference between pixels and pixels_backup
+	char const *filepath; // Can be NULL if this canvas has not been associated with a file yet.
+	                      // Allocated on the heap.
+	bool has_unsaved_changes;
 } Canvas;
 
 // Pixels must point to a valid heap-allocated [w * h] array. Canvas becomes
@@ -57,3 +60,20 @@ bool canvas_undo(Canvas *canvas);
 // operation will cancel any uncommited changes to the canvas. This function will also update the
 // underlying texture buffer.
 bool canvas_redo(Canvas *canvas);
+
+typedef enum {
+	CF_OK, // Everything went as planned.
+	CF_CANCELLED_BY_USER, // User has canceled a file chooser dialog.
+	CF_UNKNOWN_IMAGE_FORMAT, // The specified filepath has an unknown image extension.
+	CF_OTHER_ERROR,
+	CF_COUNT // Must be the last element.
+} CanvasFileStatus;
+
+// Tries to save the image data inside the canvas to a file. If filepath is not NULL then this
+// canvas becomes associated with it. Otherwise, the user may be prompted to enter a filepath if
+// this canvas has not yet been associated with a file.
+CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath);
+
+// This function is similar to canvas_save_to_file, but the user is always prompted to enter a
+// filename.
+CanvasFileStatus canvas_save_as_to_file(Canvas *canvas);

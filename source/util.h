@@ -12,6 +12,9 @@
 // Prints an error message including the SDL_GetError() information and terminates the program.
 #define fatalSDL(...) def_fatalSDL(__FILE__, __LINE__, __VA_ARGS__)
 
+// Terminates the program because its execution has violated an unreachable statement assertion.
+#define unreachable() def_fatal(__FILE__, __LINE__, "Unreachable statement")
+
 // Terminates the program if it couldn't allocate enough memory. The allocated buffer will be
 // filled with zeroes.
 void *xalloc(size_t size) __attribute__ ((malloc));
@@ -24,4 +27,4 @@ void def_fatalSDL(char const *file, int line, char const *format, ...) __attribu
 
 // Creates a heap-allocated copy of data. Terminates the program if it couldn't allocate enough
 // memory.
-void *xmemdup(void *data, size_t n) __attribute__ ((malloc));
+void *xmemdup(void const *data, size_t n) __attribute__ ((malloc));
