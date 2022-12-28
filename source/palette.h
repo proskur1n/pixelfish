@@ -9,6 +9,9 @@ typedef uint32_t Color; // RGBA
 #define BLUE(x) (((x) >> 8) & 0xff)
 #define ALPHA(x) ((x) & 0xff)
 
+// Converts SDL_Color to Color
+#define COLOR_FROM(c) ((c.r << 24) | (c.g << 16) | (c.b << 8) | c.a)
+
 typedef struct {
 	Color colorkey; // Used for image formats that do not support transparency.
 	int count; // Length of colors[]

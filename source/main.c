@@ -48,6 +48,8 @@ int active_button; // Mouse button used for drawing.
 bool ui_wants_mouse; // Do not pass click-events to the canvas.
 SDL_Point mouse_pos;
 bool just_clicked[6];
+char error_text[128]; // Error message displayed in the bottom-left corner.
+Uint64 error_timeout; // Timestamp after which the error_text should disappear.
 
 // Transforms the relative scaled coordinates to indices inside the canvas's color buffer.
 static SDL_Rect get_brush_rect(int size, float fx, float fy)
@@ -173,6 +175,7 @@ static void render_brush_outline(void)
 				// Finish previous line
 				int qx = offset.x + (brect.x + line_start) * zoom;
 				int qy = offset.y + (brect.y + y) * zoom;
+				// TODO: Too many state changes, replace with normal SDL call
 				fill_rect(src_color, qx, qy, (x - line_start) * zoom, left ? -thickness : thickness);
 				line_start = -1;
 			}
@@ -246,11 +249,37 @@ static void render_user_interface(Theme theme)
 	};
 
 	char status[128];
-	snprintf(status, LENGTH(status), " %s (%d) | History: [%d/%d]", tool_name[tool], brush.size, canvas.undo_left, canvas.undo_left + canvas.redo_left);
+	if (SDL_GetTicks64() < error_timeout) {
+		strncpy(status, error_text, LENGTH(status));
+		status[LENGTH(status) - 1] = 0;
+	} else {
+		int len = 0;
+		if (tool <= ERASER) {
+			len += sprintf(status, "%s (%d)", tool_name[tool], brush.size);
+		} else {
+			len += sprintf(status, "%s", tool_name[tool]);
+		}
+		sprintf(status + len, " | History: %d/%d%s", canvas.undo_left,
+			canvas.undo_left + canvas.redo_left, canvas.has_unsaved_changes ? " [ + ]" : "");
+	}
+
+	int padding = 4;
 	int tw = 0;
 	int th = 0;
 	TTF_SizeUTF8(font, status, &tw, &th);
-	render_string(theme, status, 0, winH - th, th);
+	fill_rect(COLOR_FROM(theme.bg), 0, winH - th, tw + padding * 2, th);
+	render_string(theme, status, padding, winH - th, th);
+}
+
+static void show_error(char const *format, ...) __attribute__ ((format (printf, 1, 2)));
+
+static void show_error(char const *format, ...)
+{
+	va_list va;
+	va_start(va, format);
+	vsnprintf(error_text, LENGTH(error_text), format, va);
+	va_end(va);
+	error_timeout = SDL_GetTicks64() + 2500;
 }
 
 static void use_brush(bool round, int size, Color color, float fx, float fy)
@@ -542,14 +571,15 @@ static void ka_save_file(Arg arg, SDL_Keycode key, uint16_t mod)
 	} else {
 		status = canvas_save_as_to_file(&canvas);
 	}
-	// TODO: handle errors
 	switch (status) {
 	case CF_OK:
 	case CF_CANCELLED_BY_USER:
 		break;
 	case CF_UNKNOWN_IMAGE_FORMAT:
+		show_error("Couldn't save image: Unsupported image format");
 		break;
 	case CF_OTHER_ERROR:
+		show_error("Couldn't save image: I/O error");
 		break;
 	case CF_COUNT:
 		unreachable();
