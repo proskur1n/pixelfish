@@ -46,7 +46,6 @@ bool panning;
 bool drawing; // TODO remove
 int active_button; // Mouse button used for drawing.
 bool ui_wants_mouse; // Do not pass click-events to the canvas.
-bool ctrl_down; // TODO remove
 SDL_Point mouse_pos;
 bool just_clicked[6];
 
@@ -508,11 +507,11 @@ static void ka_zoom(Arg arg, SDL_Keycode key, uint16_t mod)
 
 static void ka_change_tool(Arg arg, SDL_Keycode key, uint16_t mod)
 {
-	if ((int) tool != arg.i) {
+	if (arg.i < 0) {
+		tool = prev_tool;
+	} else if ((int) tool != arg.i) {
 		prev_tool = tool;
 		tool = arg.i;
-	} else if (arg.i == ERASER || arg.i == COLOR_PICKER || arg.i == BUCKET_FILL) {
-		tool = prev_tool;
 	}
 	if (tool == BRUSH_ROUND || (tool == ERASER && prev_tool == BRUSH_ROUND)) {
 		brush_set_round(&brush, true);
@@ -550,9 +549,9 @@ static KeyAction const key_down_actions[] = {
 };
 
 static KeyAction const key_up_actions[] = {
-	{ SDLK_e,    0, 0, ka_change_tool, {.i = ERASER} },
-	{ SDLK_LALT, 0, 0, ka_change_tool, {.i = COLOR_PICKER} },
-	{ SDLK_g,    0, 0, ka_change_tool, {.i = BUCKET_FILL} },
+	{ SDLK_e,    0, 0, ka_change_tool, {.i = -1} },
+	{ SDLK_LALT, 0, 0, ka_change_tool, {.i = -1} },
+	{ SDLK_g,    0, 0, ka_change_tool, {.i = -1} },
 };
 
 // Used for both wheel and button events.
@@ -616,21 +615,23 @@ static void poll_events()
 			} else {
 				brush_resize(&brush, y);
 			}
-			break; }
+			break;
+		}
 		// TODO: OLD CODE BELOW!
-		case SDL_MOUSEBUTTONDOWN:
-			if ((e.button.button == SDL_BUTTON_MIDDLE) || (ctrl_down && e.button.button == SDL_BUTTON_LEFT)) {
+		case SDL_MOUSEBUTTONDOWN: {
+			SDL_Keymod mod = SDL_GetModState();
+			int button = e.button.button;
+			just_clicked[button] = true;
+			if (button == SDL_BUTTON_MIDDLE || ((mod & KMOD_LCTRL) && button == SDL_BUTTON_LEFT)) {
 				set_cursor(SDL_SYSTEM_CURSOR_HAND);
 				panning = true;
-			} else {
-				just_clicked[e.button.button] = true;
-				if (!ui_wants_mouse) {
-					drawing = true;
-					active_button = e.button.button;
-					tool_on_click(active_button);
-				}
+			} else if (!ui_wants_mouse) {
+				drawing = true;
+				active_button = button;
+				tool_on_click(active_button);
 			}
 			break;
+		}
 		case SDL_MOUSEBUTTONUP:
 			if (panning) {
 				set_cursor(SDL_SYSTEM_CURSOR_ARROW);
@@ -683,7 +684,7 @@ int main(int argc, char *argv[])
 		fatalSDL("Could not create renderer");
 	}
 
-	canvas = canvas_create_with_background(8, 8, 0x00000000, ren);
+	canvas = canvas_create_with_background(60, 40, 0x00000000, ren);
 	// char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
 	// if (msg != NULL) {
 	// 	fatal("Could not open image: %s", msg);
