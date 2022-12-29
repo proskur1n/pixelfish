@@ -139,13 +139,18 @@ void canvas_commit(Canvas *canvas)
 		}
 	}
 
+	for (int i = 0; i < canvas->redo_left; ++i) {
+		int j = (canvas->next_hist + i) % MAX_UNDO_LENGTH;
+		free(canvas->history[j]);
+		canvas->history[j] = NULL;
+	}
+	canvas->redo_left = 0;
 	free(canvas->history[canvas->next_hist]);
 	canvas->history[canvas->next_hist] = up;
 	canvas->next_hist = (canvas->next_hist + 1) % MAX_UNDO_LENGTH;
 	if (canvas->undo_left < MAX_UNDO_LENGTH) {
 		++canvas->undo_left;
 	}
-	canvas->redo_left = 0;
 	memset(&canvas->dirty, 0, sizeof(canvas->dirty));
 }
 
@@ -236,16 +241,13 @@ CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 		return CF_OK;
 	}
 
-	if (filepath == NULL) {
-		filepath = canvas->filepath;
-	}
-	if (filepath == NULL) {
+	if (filepath == NULL && canvas->filepath == NULL) {
 		filepath = dialog_save_file("Save File");
+		if (filepath == NULL) {
+			return CF_CANCELLED_BY_USER;
+		}
 	} else {
-		filepath = xmemdup(filepath, strlen(filepath) + 1);
-	}
-	if (filepath == NULL) {
-		return CF_CANCELLED_BY_USER;
+		filepath = xstrdup(filepath == NULL ? canvas->filepath : filepath);
 	}
 
 	if (SDL_BYTEORDER == SDL_LIL_ENDIAN) {
@@ -288,7 +290,7 @@ CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 
 CanvasFileStatus canvas_save_as_to_file(Canvas *canvas)
 {
-	char *filepath = dialog_save_file("Save As");
+	char *filepath = dialog_save_file("Save File As");
 	if (filepath == NULL) {
 		return CF_CANCELLED_BY_USER;
 	}
