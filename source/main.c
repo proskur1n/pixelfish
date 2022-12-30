@@ -9,6 +9,7 @@
 #include "util.h"
 #include "canvas.h"
 #include "brush.h"
+#include "dialog.h"
 
 typedef struct {
 	SDL_Color bg;
@@ -29,6 +30,7 @@ typedef enum {
 	TOOL_COUNT // Must be the last element.
 } ToolEnum;
 
+bool running = true;
 SDL_Window *win;
 SDL_Renderer *ren;
 TTF_Font *font;
@@ -198,6 +200,7 @@ static void render_brush_outline(void)
 				// Finish previous line
 				int qx = offset.x + (brect.x + x) * zoom;
 				int qy = offset.y + (brect.y + line_start) * zoom;
+				// TODO: Too many state changes, replace with normal SDL call
 				fill_rect(src_color, qx, qy, top ? -thickness : thickness, (y - line_start) * zoom);
 				line_start = -1;
 			}
@@ -260,7 +263,7 @@ static void render_user_interface(Theme theme)
 			len += sprintf(status, "%s", tool_name[tool]);
 		}
 		sprintf(status + len, " | History: %d/%d%s", canvas.undo_left,
-			canvas.undo_left + canvas.redo_left, canvas.has_unsaved_changes ? " [ + ]" : "");
+			canvas.undo_left + canvas.redo_left, canvas.unsaved ? " [ + ]" : "");
 	}
 
 	int padding = 4;
@@ -511,6 +514,51 @@ static void change_zoom(int amount)
 	constrain_canvas();
 }
 
+typedef enum { SAVE, SAVE_AS } SaveMethod;
+
+static bool save_file(SaveMethod method)
+{
+	CanvasFileStatus status;
+	if (method == SAVE) {
+		status = canvas_save_to_file(&canvas, NULL);
+	} else {
+		status = canvas_save_as_to_file(&canvas);
+	}
+	switch (status) {
+	case CF_OK:
+		return true;
+	case CF_CANCELLED_BY_USER:
+		break;
+	case CF_UNKNOWN_IMAGE_FORMAT:
+		show_error("Couldn't save image: Unsupported image format");
+		break;
+	case CF_OTHER_ERROR:
+		show_error("Couldn't save image: I/O error");
+		break;
+	}
+	return false;
+}
+
+static void try_quit_application(void)
+{
+	if (!canvas.unsaved) {
+		running = false;
+		return;
+	}
+	switch (dialog_unsaved_changes_confirmation()) {
+	case DIALOG_CANCEL:
+		break;
+	case DIALOG_SAVE:
+		if (save_file(SAVE)) {
+			running = false;
+		}
+		break;
+	case DIALOG_DISCARD:
+		running = false;
+		break;
+	}
+}
+
 enum {
 	ALLOW_REPEAT = 1u << 0,
 };
@@ -565,25 +613,13 @@ static void ka_undo_redo(Arg arg, SDL_Keycode key, uint16_t mod)
 
 static void ka_save_file(Arg arg, SDL_Keycode key, uint16_t mod)
 {
-	CanvasFileStatus status;
-	if (arg.i == 0) {
-		status = canvas_save_to_file(&canvas, NULL);
-	} else {
-		status = canvas_save_as_to_file(&canvas);
-	}
-	switch (status) {
-	case CF_OK:
-	case CF_CANCELLED_BY_USER:
-		break;
-	case CF_UNKNOWN_IMAGE_FORMAT:
-		show_error("Couldn't save image: Unsupported image format");
-		break;
-	case CF_OTHER_ERROR:
-		show_error("Couldn't save image: I/O error");
-		break;
-	case CF_COUNT:
-		unreachable();
-	}
+	save_file(arg.i);
+}
+
+static void ka_quit(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	(void) arg;
+	try_quit_application();
 }
 
 static KeyAction const key_down_actions[] = {
@@ -598,8 +634,9 @@ static KeyAction const key_down_actions[] = {
 	{ SDLK_z,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i = -1} },
 	{ SDLK_y,       KMOD_LCTRL,  ALLOW_REPEAT, ka_undo_redo,   {.i =  1} },
 	{ SDLK_LALT,    0,           0,            ka_change_tool, {.i = COLOR_PICKER} },
-	{ SDLK_s,       KMOD_LCTRL|KMOD_LSHIFT, 0, ka_save_file,   {.i = 1} },
-	{ SDLK_s,       KMOD_LCTRL,  0,            ka_save_file,   {.i = 0} },
+	{ SDLK_s,       KMOD_LCTRL|KMOD_LSHIFT, 0, ka_save_file,   {.i = SAVE_AS} },
+	{ SDLK_s,       KMOD_LCTRL,  0,            ka_save_file,   {.i = SAVE} },
+	{ SDLK_q,       KMOD_LCTRL,  0,            ka_quit,        {0} },
 };
 
 static KeyAction const key_up_actions[] = {
@@ -641,7 +678,8 @@ static void poll_events()
 	while (SDL_PollEvent(&e)) {
 		switch (e.type) {
 		case SDL_QUIT:
-			exit(EXIT_SUCCESS);
+			try_quit_application();
+			break;
 		case SDL_KEYDOWN:
 			for (size_t i = 0; i < LENGTH(key_down_actions); ++i) {
 				KeyAction a = key_down_actions[i];
@@ -749,10 +787,12 @@ int main(int argc, char *argv[])
 	left_color = palette.colors[0];
 	right_color = palette.colors[1];
 
-	while (true) {
+	while (running) {
 		poll_events();
 		render_canvas(dark_theme);
 		render_user_interface(dark_theme);
 		SDL_RenderPresent(ren);
 	}
+
+	// TODO: free everything
 }

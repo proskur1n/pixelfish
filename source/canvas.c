@@ -90,7 +90,7 @@ static void update_texture(Canvas *canvas, SDL_Rect rect)
 		memcpy(dest, src, rect.w * sizeof(Color));
 	}
 	SDL_UnlockTexture(canvas->texture);
-	canvas->has_unsaved_changes = true;
+	canvas->unsaved = true;
 }
 
 void canvas_mark_dirty(Canvas *canvas, SDL_Rect region)
@@ -237,7 +237,7 @@ int stbi_write_jpg(char const *filename, int w, int h, int comp, const void *dat
 
 CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 {
-	if (!canvas->has_unsaved_changes && filepath == NULL) {
+	if (!canvas->unsaved && filepath == NULL && canvas->filepath != NULL) {
 		return CF_OK;
 	}
 
@@ -277,7 +277,7 @@ CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 	if (success) {
 		free((char *) canvas->filepath);
 		canvas->filepath = filepath;
-		canvas->has_unsaved_changes = false;
+		canvas->unsaved = false;
 		return CF_OK;
 	}
 

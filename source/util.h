@@ -28,3 +28,7 @@ void def_fatalSDL(char const *file, int line, char const *format, ...) __attribu
 // Creates a heap-allocated copy of data. Terminates the program if it couldn't allocate enough
 // memory.
 void *xmemdup(void const *data, size_t n) __attribute__ ((malloc));
+
+// Creates a heap-allocated copy of the given string. Terminates the program if it couldn't
+// allocate enough memory.
+char *xstrdup(char const *str) __attribute__((malloc));

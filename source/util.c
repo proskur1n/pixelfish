@@ -49,3 +49,11 @@ void *xmemdup(void const *src, size_t n)
 	}
 	return memcpy(dest, src, n);
 }
+
+char *xstrdup(char const *str) {
+	char *copy = strdup(str);
+	if (!copy) {
+		fatal("No memory");
+	}
+	return copy;
+}

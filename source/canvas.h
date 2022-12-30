@@ -22,9 +22,8 @@ typedef struct {
 	int undo_left; // Remaining amount of undo steps (<= MAX_UNDO_LENGTH)
 	int redo_left; // Amount of redo operations left. Every successful undo increments this counter.
 	SDL_Rect dirty; // Difference between pixels and pixels_backup
-	char const *filepath; // Can be NULL if this canvas has not been associated with a file yet.
-	                      // Allocated on the heap.
-	bool has_unsaved_changes;
+	char const *filepath; // Can be NULL if this canvas has not been associated with a file yet. Allocated on the heap.
+	bool unsaved;
 } Canvas;
 
 // Pixels must point to a valid heap-allocated [w * h] array. Canvas becomes
@@ -66,7 +65,6 @@ typedef enum {
 	CF_CANCELLED_BY_USER, // User has canceled a file chooser dialog.
 	CF_UNKNOWN_IMAGE_FORMAT, // The specified filepath has an unknown image extension.
 	CF_OTHER_ERROR,
-	CF_COUNT // Must be the last element.
 } CanvasFileStatus;
 
 // Tries to save the image data inside the canvas to a file. If filepath is not NULL then this
