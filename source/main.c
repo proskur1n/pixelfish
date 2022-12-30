@@ -554,22 +554,27 @@ static bool save_file(SaveMethod method)
 
 static void try_quit_application(void)
 {
+#ifdef NDEBUG
 	if (!canvas.unsaved) {
 		running = false;
 		return;
 	}
 	switch (dialog_unsaved_changes_confirmation()) {
-	case DIALOG_CANCEL:
+	case DIALOG_RESPONSE_CANCEL:
 		break;
-	case DIALOG_SAVE:
+	case DIALOG_RESPONSE_SAVE:
 		if (save_file(SAVE)) {
 			running = false;
 		}
 		break;
-	case DIALOG_DISCARD:
+	case DIALOG_RESPONSE_DISCARD:
 		running = false;
 		break;
 	}
+#else
+	// Speed up the edit-compile-debug cycle in debug mode.
+	running = false;
+#endif
 }
 
 enum {

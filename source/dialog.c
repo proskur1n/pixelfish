@@ -71,7 +71,7 @@ DialogResponse dialog_unsaved_changes_confirmation(void)
 	initialize_gtk();
 
 	GtkWidget *dialog = gtk_dialog_new_with_buttons("Unsaved Changes", NULL, GTK_DIALOG_MODAL,
-		"Discard", DIALOG_DISCARD, "Save", DIALOG_SAVE, "Cancel", GTK_RESPONSE_CANCEL, NULL);
+		"Discard", DIALOG_RESPONSE_DISCARD, "Save", DIALOG_RESPONSE_SAVE, "Cancel", GTK_RESPONSE_CANCEL, NULL);
 	gtk_window_set_default_size(GTK_WINDOW(dialog), 330, 110);
 	gtk_window_set_keep_above(GTK_WINDOW(dialog), true);
 
@@ -82,7 +82,7 @@ DialogResponse dialog_unsaved_changes_confirmation(void)
 	gtk_widget_set_halign(label, GTK_ALIGN_START);
 	gtk_container_add(GTK_CONTAINER(content_area), label);
 
-	GtkWidget *discard_button = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog), DIALOG_DISCARD);
+	GtkWidget *discard_button = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog), DIALOG_RESPONSE_DISCARD);
 	set_background_color(discard_button, "#e01b24");
 	GtkWidget *cancel_button = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
 	gtk_widget_grab_default(cancel_button);
@@ -94,8 +94,8 @@ DialogResponse dialog_unsaved_changes_confirmation(void)
 		gtk_main_iteration();
 	}
 
-	if (res == DIALOG_DISCARD || res == DIALOG_SAVE) {
+	if (res == DIALOG_RESPONSE_DISCARD || res == DIALOG_RESPONSE_SAVE) {
 		return res;
 	}
-	return DIALOG_CANCEL;
+	return DIALOG_RESPONSE_CANCEL;
 }

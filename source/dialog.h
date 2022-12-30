@@ -11,9 +11,9 @@ char *dialog_open_file(char const *title);
 char *dialog_save_file(char const *title);
 
 typedef enum {
-	DIALOG_CANCEL,
-	DIALOG_SAVE,
-	DIALOG_DISCARD,
+	DIALOG_RESPONSE_CANCEL,
+	DIALOG_RESPONSE_SAVE,
+	DIALOG_RESPONSE_DISCARD,
 } DialogResponse;
 
 // Shows the user a confirmation dialog for "unsaved changes" with three generic choices.
