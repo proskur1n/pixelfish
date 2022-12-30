@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <assert.h>
+#include <limits.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include "util.h"
@@ -152,13 +153,14 @@ static void render_brush_outline(void)
 		);
 	}
 
-	Color src_color = 0xffffffff;
 	SDL_BlendMode old_blend = 0;
 	SDL_GetRenderDrawBlendMode(ren, &old_blend);
 
 	if (SDL_SetRenderDrawBlendMode(ren, inverted_blend) < 0) {
 		// Fallback to a simpler blend mode.
-		src_color = 0x000000ff;
+		SDL_SetRenderDrawColor(ren, 0, 0, 0, 0xff);
+	} else {
+		SDL_SetRenderDrawColor(ren, 0xff, 0xff, 0xff, 0xff);
 	}
 
 	float fx = (mouse_pos.x - offset.x) / zoom;
@@ -168,22 +170,28 @@ static void render_brush_outline(void)
 
 	// Horizontal lines
 	for (int y = 0; y <= brush.size; ++y) {
-		int line_start = -1;
+		int line_x = INT_MIN;
+		int line_y = offset.y + (brect.y + y) * zoom;
 		bool left = false;
 		for (int x = 0; x <= brush.size; ++x) {
 			bool cur = x < brush.size && y < brush.size && brush.stencil[y * brush.size + x];
 			bool top = y > 0 && x < brush.size && brush.stencil[(y - 1) * brush.size + x];
-			if (line_start >= 0 && (cur == top || cur != left)) {
+			if (line_x != INT_MIN && (cur == top || cur != left)) {
 				// Finish previous line
-				int qx = offset.x + (brect.x + line_start) * zoom;
-				int qy = offset.y + (brect.y + y) * zoom;
-				// TODO: Too many state changes, replace with normal SDL call
-				fill_rect(src_color, qx, qy, (x - line_start) * zoom, left ? -thickness : thickness);
-				line_start = -1;
+				int width = (offset.x + (brect.x + x) * zoom) - line_x;
+				if (!cur) {
+					width += thickness;
+				}
+				SDL_Rect rect = {line_x, line_y, width, left ? -thickness : thickness};
+				SDL_RenderFillRect(ren, &rect);
+				line_x = INT_MIN;
 			}
-			if (cur != top && line_start < 0) {
+			if (cur != top && line_x == INT_MIN) {
 				// Start a new line
-				line_start = x;
+				line_x = offset.x + (brect.x + x) * zoom;
+				if (!left) {
+					line_x -= thickness;
+				}
 			}
 			left = cur;
 		}
@@ -191,22 +199,28 @@ static void render_brush_outline(void)
 
 	// Vertical lines
 	for (int x = 0; x <= brush.size; ++x) {
-		int line_start = -1;
+		int line_x = offset.x + (brect.x + x) * zoom;
+		int line_y = INT_MIN;
 		bool top = false;
 		for (int y = 0; y <= brush.size; ++y) {
 			bool cur = x < brush.size && y < brush.size && brush.stencil[y * brush.size + x];
 			bool left = x > 0 && y < brush.size && brush.stencil[y * brush.size + x - 1];
-			if (line_start >= 0 && (cur == left || cur != top)) {
+			if (line_y != INT_MIN && (cur == left || cur != top)) {
 				// Finish previous line
-				int qx = offset.x + (brect.x + x) * zoom;
-				int qy = offset.y + (brect.y + line_start) * zoom;
-				// TODO: Too many state changes, replace with normal SDL call
-				fill_rect(src_color, qx, qy, top ? -thickness : thickness, (y - line_start) * zoom);
-				line_start = -1;
+				int height = (offset.y + (brect.y + y) * zoom) - line_y;
+				if (cur) {
+					height -= thickness;
+				}
+				SDL_Rect rect = {line_x, line_y, top ? -thickness : thickness, height};
+				SDL_RenderFillRect(ren, &rect);
+				line_y = INT_MIN;
 			}
-			if (cur != left && line_start < 0) {
+			if (cur != left && line_y == INT_MIN) {
 				// Start a new line
-				line_start = y;
+				line_y = offset.y + (brect.y + y) * zoom;
+				if (top) {
+					line_y += thickness;
+				}
 			}
 			top = cur;
 		}
@@ -275,7 +289,6 @@ static void render_user_interface(Theme theme)
 }
 
 static void show_error(char const *format, ...) __attribute__ ((format (printf, 1, 2)));
-
 static void show_error(char const *format, ...)
 {
 	va_list va;
