@@ -861,7 +861,7 @@ int main(int argc, char *argv[])
 	}
 	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
 
-	win = SDL_CreateWindow("Pixel Art Editor", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_RESIZABLE);
+	win = SDL_CreateWindow("Pixel Art Editor", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 850, 600, SDL_WINDOW_RESIZABLE);
 	if (win == NULL) {
 		fatalSDL("Could not create window");
 	}
