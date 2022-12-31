@@ -6,9 +6,10 @@ SRCS := $(wildcard source/*.c) build/embed.c
 HEADERS := $(wildcard source/*.h) build/embed.h
 OBJS := $(subst source,build,$(patsubst %.c,%.o,$(SRCS)))
 
-# debug build
-all: CFLAGS += -DDEVELOPER -fno-omit-frame-pointer
-all: pixelfish
+all: release
+
+debug: CFLAGS += -DDEVELOPER -fno-omit-frame-pointer
+debug: pixelfish
 
 release: CFLAGS += -O3 -DNDEBUG
 release: pixelfish
@@ -34,4 +35,4 @@ build/%.o: source/%.c $(HEADERS)
 clean:
 	rm -f pixelfish build/* assets/embed.c assets/embed.h
 
-.PHONY: all release clean
+.PHONY: all debug release clean

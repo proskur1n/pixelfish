@@ -36,7 +36,6 @@ bool running = true;
 SDL_Window *win;
 SDL_Renderer *ren;
 TTF_Font *font;
-Palette palette;
 Color left_color;
 Color right_color;
 ToolEnum prev_tool = BRUSH_ROUND;
@@ -47,13 +46,22 @@ SDL_Texture *checkerboard;
 SDL_Point offset;
 float zoom = 15.0f; // One image pixel takes up "zoom" pixels on the screen.
 bool panning;
-bool drawing; // TODO remove
+bool drawing;
 int active_button; // Mouse button used for drawing.
 bool ui_wants_mouse; // Do not pass click-events to the canvas.
 SDL_Point mouse_pos;
 bool just_clicked[6];
 char error_text[128]; // Error message displayed in the bottom-left corner.
 Uint64 error_timeout; // Timestamp after which the error_text should disappear.
+
+// Kudos: NA16 by Nauris (https://lospec.com/palette-list/na16)
+static Color const default_palette[] = {
+	0x8c8faeff, 0x584563ff, 0x3e2137ff, 0x9a6348ff,
+	0xd79b7dff, 0xf5edbaff, 0xc0c741ff, 0x647d34ff,
+	0xe4943aff, 0x9d303bff, 0xd26471ff, 0x70377fff,
+	0x7ec4c1ff, 0x34859dff, 0x17434bff, 0x1f0e1cff,
+};
+// TODO: Add a way to load different palettes.
 
 // Transforms the relative scaled coordinates to indices inside the canvas's color buffer.
 static SDL_Rect get_brush_rect(int size, float fx, float fy)
@@ -232,17 +240,20 @@ static void render_user_interface(Theme theme)
 		render_brush_outline();
 	}
 
+	int winW, winH;
+	SDL_GetRendererOutputSize(ren, &winW, &winH);
 	ui_wants_mouse = false;
 	int x = 0;
 	int y = 0;
 	int color_width = 30;
-	for (int i = 0; i < palette.count; ++i) {
-		render_clickable_color_pin(palette.colors[i], x, y, color_width);
+	for (size_t i = 0; i < LENGTH(default_palette); ++i) {
+		if (y + color_width > winH * 8 / 10) {
+			x += color_width;
+			y = 0;
+		}
+		render_clickable_color_pin(default_palette[i], x, y, color_width);
 		y += color_width;
 	}
-
-	int winW, winH;
-	SDL_GetRendererOutputSize(ren, &winW, &winH);
 
 	Color c[] = {right_color, left_color};
 	for (int i = 0; i < 2; ++i) {
@@ -713,25 +724,6 @@ static KeyAction const key_up_actions[] = {
 	{ SDLK_g,    0, 0, ka_change_tool, {.i = -1} },
 };
 
-// Used for both wheel and button events.
-// typedef void (*MouseActionFunc)(int x, int y, uint16_t mod);
-
-// TODO
-// typedef struct {
-// 	uint16_t mod;
-// 	uint16_t flag;
-// 	MouseActionFunc func;
-// 	Arg arg;
-// } WheelAction;
-
-// static void wa_zoom(int x, int y, uint16_t mod) {
-// 	ka_zoom((Arg) {.i = y}, 0, 0);
-// }
-
-// static WheelAction const wheel_actions[] = {
-// 	{ KMOD_LCTRL, 0, }
-// }
-
 static void poll_events()
 {
 	// Reset io state
@@ -777,7 +769,6 @@ static void poll_events()
 			}
 			break;
 		}
-		// TODO: OLD CODE BELOW!
 		case SDL_MOUSEBUTTONDOWN: {
 			SDL_Keymod mod = SDL_GetModState();
 			int button = e.button.button;
@@ -824,7 +815,6 @@ static void cleanup(void)
 	TTF_CloseFont(font);
 	TTF_Quit();
 
-	palette_free(palette);
 	brush_free(brush);
 	canvas_free(canvas);
 
@@ -863,15 +853,9 @@ int main(int argc, char *argv[])
 	}
 
 	canvas = canvas_create_with_background(60, 40, 0x00000000, ren);
-	// char const *msg = canvas_open_image(&canvas, "Elfst33.jpg", ren);
-	// if (msg != NULL) {
-	// 	fatal("Could not open image: %s", msg);
-	// }
-
 	brush = brush_create(5, true);
-	palette = palette_get_default();
-	left_color = palette.colors[0];
-	right_color = palette.colors[1];
+	left_color = default_palette[0];
+	right_color = default_palette[1];
 
 	while (running) {
 		poll_events();

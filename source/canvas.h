@@ -4,8 +4,18 @@
 
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_rect.h>
+#include <stdint.h>
 #include <stdbool.h>
-#include "palette.h"
+
+typedef uint32_t Color; // RGBA
+
+#define RED(x) ((x) >> 24)
+#define GREEN(x) (((x) >> 16) & 0xff)
+#define BLUE(x) (((x) >> 8) & 0xff)
+#define ALPHA(x) ((x) & 0xff)
+
+// Converts SDL_Color to Color
+#define COLOR_FROM(c) ((c.r << 24) | (c.g << 16) | (c.b << 8) | c.a)
 
 enum { MAX_UNDO_LENGTH = 64 };
 
