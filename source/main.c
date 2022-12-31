@@ -588,6 +588,29 @@ static void try_quit_application(void)
 #endif
 }
 
+// Centers the current canvas on the screen and adjusts the zoom level so that the entire image
+// is visible at once.
+static void center_canvas(void)
+{
+	int winW = 0, winH = 0;
+	SDL_GetRendererOutputSize(ren, &winW, &winH);
+
+	int w = 0;
+	int h = 0;
+	if (canvas.w > canvas.h) {
+		w = winW * 9 / 10; // 90% of the window width
+		h = w * canvas.h / canvas.w;
+	} else {
+		h = winH * 9 / 10;
+		w = h * canvas.w / canvas.h;
+	}
+
+	offset.x = (winW - w) / 2;
+	offset.y = (winH - h) / 2;
+	zoom = ((float) h) / canvas.h;
+	change_zoom(0); // Apply zoom constraints
+}
+
 static void set_canvas(Canvas new_canvas)
 {
 	canvas_free(canvas);
@@ -596,7 +619,7 @@ static void set_canvas(Canvas new_canvas)
 		SDL_DestroyTexture(checkerboard);
 		checkerboard = NULL;
 	}
-	// TODO: Center / Resize canvas
+	center_canvas();
 }
 
 enum {
@@ -853,6 +876,7 @@ int main(int argc, char *argv[])
 	}
 
 	canvas = canvas_create_with_background(60, 40, 0x00000000, ren);
+	center_canvas();
 	brush = brush_create(5, true);
 	left_color = default_palette[0];
 	right_color = default_palette[1];
