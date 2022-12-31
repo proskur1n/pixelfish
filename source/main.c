@@ -549,29 +549,43 @@ static bool save_file(SaveMethod method)
 	return false;
 }
 
-static void try_quit_application(void)
+static bool can_close_canvas(void)
 {
-#ifdef NDEBUG
 	if (!canvas.unsaved) {
-		running = false;
-		return;
+		return true;
 	}
 	switch (dialog_unsaved_changes_confirmation()) {
 	case DIALOG_RESPONSE_CANCEL:
-		break;
+		return false;
 	case DIALOG_RESPONSE_SAVE:
-		if (save_file(SAVE)) {
-			running = false;
-		}
-		break;
+		return save_file(SAVE);
 	case DIALOG_RESPONSE_DISCARD:
-		running = false;
-		break;
+		return true;
 	}
-#else
+	unreachable();
+}
+
+static void try_quit_application(void)
+{
+#ifdef DEVELOPER
 	// Speed up the edit-compile-debug cycle in debug mode.
 	running = false;
+#else
+	if (can_close_canvas()){
+		running = false;
+	}
 #endif
+}
+
+static void set_canvas(Canvas new_canvas)
+{
+	canvas_free(canvas);
+	canvas = new_canvas;
+	if (checkerboard != NULL) {
+		SDL_DestroyTexture(checkerboard);
+		checkerboard = NULL;
+	}
+	// TODO: Center / Resize canvas
 }
 
 enum {
@@ -631,6 +645,43 @@ static void ka_save_file(Arg arg, SDL_Keycode key, uint16_t mod)
 	save_file(arg.i);
 }
 
+static void ka_open_file(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	if (!can_close_canvas()) {
+		return;
+	}
+
+	char *filepath = dialog_open_file(NULL);
+	if (filepath == NULL) {
+		return;
+	}
+
+	Canvas new_canvas;
+	char const *err = canvas_open_image(&new_canvas, filepath, ren);
+	free(filepath);
+	if (err == NULL) {
+		set_canvas(new_canvas);
+	} else {
+		show_error("Could not open image: %s", err);
+	}
+}
+
+static void ka_new_file(Arg arg, SDL_Keycode key, uint16_t mod)
+{
+	if (!can_close_canvas()) {
+		return;
+	}
+	int width = 0;
+	int height = 0;
+	if (dialog_width_and_height(&width, &height)) {
+		if (width <= 0 || height <= 0) {
+			show_error("Invalid image size (%d, %d)", width, height);
+		} else {
+			set_canvas(canvas_create_with_background(width, height, 0, ren));
+		}
+	}
+}
+
 static void ka_quit(Arg arg, SDL_Keycode key, uint16_t mod)
 {
 	(void) arg;
@@ -651,6 +702,8 @@ static KeyAction const key_down_actions[] = {
 	{ SDLK_LALT,    0,           0,            ka_change_tool, {.i = COLOR_PICKER} },
 	{ SDLK_s,       KMOD_LCTRL|KMOD_LSHIFT, 0, ka_save_file,   {.i = SAVE_AS} },
 	{ SDLK_s,       KMOD_LCTRL,  0,            ka_save_file,   {.i = SAVE} },
+	{ SDLK_o,       KMOD_LCTRL,  0,            ka_open_file,   {0} },
+	{ SDLK_n,       KMOD_LCTRL,  0,            ka_new_file,    {0} },
 	{ SDLK_q,       KMOD_LCTRL,  0,            ka_quit,        {0} },
 };
 

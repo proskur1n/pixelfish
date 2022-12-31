@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -98,4 +97,55 @@ DialogResponse dialog_unsaved_changes_confirmation(void)
 		return res;
 	}
 	return DIALOG_RESPONSE_CANCEL;
+}
+
+bool dialog_width_and_height(int *out_width, int *out_height)
+{
+	*out_width = 0;
+	*out_height = 0;
+	initialize_gtk();
+
+	GtkWidget *dialog = gtk_dialog_new_with_buttons("New Image", NULL, GTK_DIALOG_MODAL, "_OK",
+		GTK_RESPONSE_OK, NULL);
+	gtk_window_set_default_size(GTK_WINDOW(dialog), 310, 140);
+	gtk_window_set_keep_above(GTK_WINDOW(dialog), true);
+
+	GtkWidget *content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	g_object_set(content_area, "margin", 15, NULL);
+
+	GtkWidget *button = gtk_dialog_get_widget_for_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
+	gtk_widget_grab_default(button);
+
+	GtkWidget *width_label = gtk_label_new("Width");
+	GtkWidget *width_entry = gtk_entry_new();
+	gtk_widget_set_halign(width_label, GTK_ALIGN_START);
+	gtk_entry_set_activates_default(GTK_ENTRY(width_entry), true);
+
+	GtkWidget *height_label = gtk_label_new("Height");
+	GtkWidget *height_entry = gtk_entry_new();
+	gtk_widget_set_halign(height_label, GTK_ALIGN_START);
+	gtk_entry_set_activates_default(GTK_ENTRY(height_entry), true);
+
+	GtkGrid *grid = GTK_GRID(gtk_grid_new());
+	gtk_grid_set_column_spacing(grid, 25);
+	gtk_grid_set_row_spacing(grid, 4);
+	gtk_grid_attach(grid, width_label, 1, 1, 1, 1);
+	gtk_grid_attach(grid, width_entry, 2, 1, 1, 1);
+	gtk_grid_attach(grid, height_label, 1, 2, 1, 1);
+	gtk_grid_attach(grid, height_entry, 2, 2, 1, 1);
+	gtk_widget_set_halign(GTK_WIDGET(grid), GTK_ALIGN_CENTER);
+
+	gtk_container_add(GTK_CONTAINER(content_area), GTK_WIDGET(grid));
+	gtk_widget_show_all(dialog);
+	gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+	if (res == GTK_RESPONSE_OK) {
+		*out_width = atoi(gtk_entry_get_text(GTK_ENTRY(width_entry)));
+		*out_height = atoi(gtk_entry_get_text(GTK_ENTRY(height_entry)));
+	}
+
+	gtk_widget_destroy(dialog);
+	while (gtk_events_pending()) {
+		gtk_main_iteration();
+	}
+	return res == GTK_RESPONSE_OK;
 }

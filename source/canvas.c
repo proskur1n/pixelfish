@@ -59,7 +59,7 @@ char const *canvas_open_image(Canvas *out_result, char const *filepath, SDL_Rend
 	}
 
 	*out_result = canvas_create_from_memory(width, height, rgba, ren);
-	out_result->filepath = xmemdup(filepath, strlen(filepath) + 1);
+	out_result->filepath = xstrdup(filepath);
 	return NULL;
 }
 
