@@ -11,6 +11,7 @@
 #include "canvas.h"
 #include "brush.h"
 #include "dialog.h"
+#include "embed.h"
 
 typedef struct {
 	SDL_Color bg;
@@ -144,12 +145,8 @@ static void render_brush_outline(void)
 	static SDL_BlendMode inverted_blend = 0;
 	if (inverted_blend == 0) {
 		inverted_blend = SDL_ComposeCustomBlendMode(
-			SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR,
-			SDL_BLENDFACTOR_ZERO,
-			SDL_BLENDOPERATION_ADD,
-			SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR,
-			SDL_BLENDFACTOR_ZERO,
-			SDL_BLENDOPERATION_ADD
+			SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR, SDL_BLENDFACTOR_ZERO, SDL_BLENDOPERATION_ADD,
+			SDL_BLENDFACTOR_ONE_MINUS_DST_COLOR, SDL_BLENDFACTOR_ZERO, SDL_BLENDOPERATION_ADD
 		);
 	}
 
@@ -543,10 +540,10 @@ static bool save_file(SaveMethod method)
 	case CF_CANCELLED_BY_USER:
 		break;
 	case CF_UNKNOWN_IMAGE_FORMAT:
-		show_error("Couldn't save image: Unsupported image format");
+		show_error("Could not save image: Unsupported image format");
 		break;
 	case CF_OTHER_ERROR:
-		show_error("Couldn't save image: I/O error");
+		show_error("Could not save image: I/O error");
 		break;
 	}
 	return false;
@@ -769,13 +766,30 @@ static void poll_events()
 	}
 }
 
+static void cleanup(void)
+{
+	TTF_CloseFont(font);
+	TTF_Quit();
+
+	palette_free(palette);
+	brush_free(brush);
+	canvas_free(canvas);
+
+	SDL_DestroyTexture(checkerboard);
+	SDL_DestroyRenderer(ren);
+	SDL_DestroyWindow(win);
+	SDL_Quit();
+}
+
 int main(int argc, char *argv[])
 {
+	atexit(cleanup);
+
 	if (SDL_Init(SDL_INIT_VIDEO) || TTF_Init()) {
 		fatalSDL("Could not initialize SDL2");
 	}
 
-	font = TTF_OpenFont("amiko/Amiko-Regular.ttf", 16);
+	font = TTF_OpenFontRW(SDL_RWFromConstMem(font_data, font_data_len), true, 16);
 	if (font == NULL) {
 		fatalSDL("Could not open font");
 	}
@@ -785,13 +799,14 @@ int main(int argc, char *argv[])
 	if (win == NULL) {
 		fatalSDL("Could not create window");
 	}
+
 	ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	if (ren == NULL) {
 		// Try different flags
 		ren = SDL_CreateRenderer(win, -1, 0);
-	}
-	if (ren == NULL) {
-		fatalSDL("Could not create renderer");
+		if (ren == NULL) {
+			fatalSDL("Could not create renderer");
+		}
 	}
 
 	canvas = canvas_create_with_background(60, 40, 0x00000000, ren);
@@ -812,5 +827,5 @@ int main(int argc, char *argv[])
 		SDL_RenderPresent(ren);
 	}
 
-	// TODO: free everything
+	return EXIT_SUCCESS;
 }

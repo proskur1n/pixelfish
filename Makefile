@@ -1,15 +1,22 @@
 WARNINGS := -Wall -Wextra -Wpedantic -Wno-unused-parameter
 LIBS := -lSDL2 -lSDL2_ttf -lm `pkg-config --libs gtk+-3.0`
-CFLAGS := $(WARNINGS) -g
+CFLAGS := $(WARNINGS) -Ibuild -g
 
-SRCS := $(wildcard source/*.c)
-HEADERS := $(wildcard source/*.h)
-OBJS := $(SRCS:source/%.c=build/%.o)
+SRCS := $(wildcard source/*.c) build/embed.c
+HEADERS := $(wildcard source/*.h) build/embed.h
+OBJS := $(subst source,build,$(patsubst %.c,%.o,$(SRCS)))
 
 all: pixelfish
 
 pixelfish: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LIBS)
+
+build/embed.c: build/embed.h
+build/embed.h: assets/*
+	cd assets && python3 include.py && mv embed.c embed.h ../build
+
+build/embed.o: build/embed.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 build/dialog.o: source/dialog.c source/dialog.h
 	@mkdir -p build
