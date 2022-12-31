@@ -228,12 +228,11 @@ bool canvas_redo(Canvas *canvas)
 	return true;
 }
 
-// TODO: What formats should we actually support?
 int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
-// int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
-// int stbi_write_tga(char const *filename, int w, int h, int comp, const void *data);
-int stbi_write_jpg(char const *filename, int w, int h, int comp, const void *data, int quality);
-// int stbi_write_hdr(char const *filename, int w, int h, int comp, const float *data);
+int stbi_write_bmp(char const *filename, int w, int h, int comp, const void *data);
+int stbi_write_tga(char const *filename, int w, int h, int comp, const void *data);
+// TODO: Implement my own functions to read and write PPM files. This image format is not properly
+// supported by stbi, but I find it useful because of its simplicity.
 
 CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 {
@@ -261,8 +260,13 @@ CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 	int success = 0;
 	int unknown_format = 0;
 	char const *ext = strrchr(filepath, '.');
+	int const comp = 4; // RGBA
 	if (ext == NULL || strcmp(ext, ".png") == 0) {
-		success = stbi_write_png(filepath, canvas->w, canvas->h, 4, canvas->pixels, 0);
+		success = stbi_write_png(filepath, canvas->w, canvas->h, comp, canvas->pixels, 0);
+	} else if (strcmp(ext, ".bmp") == 0 || strcmp(ext, ".dib") == 0) {
+		success = stbi_write_bmp(filepath, canvas->w, canvas->h, comp, canvas->pixels);
+	} else if (strcmp(ext, ".tga") == 0) {
+		success = stbi_write_tga(filepath, canvas->w, canvas->h, comp, canvas->pixels);
 	} else {
 		unknown_format = 1;
 	}
@@ -281,7 +285,7 @@ CanvasFileStatus canvas_save_to_file(Canvas *canvas, char const *filepath)
 		return CF_OK;
 	}
 
-	free((char *) filepath); // Discard const because filepath is now a copy.
+	free((char *) filepath); // Filepath is now a copy. We have to free it.
 	if (unknown_format) {
 		return CF_UNKNOWN_IMAGE_FORMAT;
 	}

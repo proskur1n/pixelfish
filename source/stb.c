@@ -1,4 +1,6 @@
-// TODO: Define some of the STBI_ONLY_* macros.
+#define STBI_ONLY_PNG
+#define STBI_ONLY_BMP
+#define STBI_ONLY_TGA
 #define STBI_FAILURE_USERMSG
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
